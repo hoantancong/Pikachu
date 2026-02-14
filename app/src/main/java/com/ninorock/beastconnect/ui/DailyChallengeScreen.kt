@@ -9,10 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,17 +24,15 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ninorock.beastconnect.game.*
 
 @Composable
-fun CampaignGameScreen(
+fun DailyChallengeScreen(
     onBack: () -> Unit,
     viewModel: GameViewModel = viewModel()
 ) {
@@ -47,7 +42,7 @@ fun CampaignGameScreen(
     val activity = context as? Activity
 
     LaunchedEffect(Unit) {
-        viewModel.startGame(GameMode.CAMPAIGN)
+        viewModel.startGame(GameMode.DAILY_CHALLENGE)
     }
 
     Box(
@@ -55,7 +50,7 @@ fun CampaignGameScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))
+                    colors = listOf(Color(0xFF1A237E), Color(0xFF283593), Color(0xFF303F9F))
                 )
             )
     ) {
@@ -71,11 +66,14 @@ fun CampaignGameScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("CAMPAIGN", color = Color(0xFFFFD700), fontSize = 16.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                GameInfoItemModern("LEVEL", "${state.level}/30", Color.White)
+                Text("DAILY", color = Color(0xFF00E5FF), fontSize = 18.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
+                Text("CHALLENGE", color = Color(0xFF00E5FF), fontSize = 12.nonScalableSp(), fontWeight = FontWeight.Bold)
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
                 GameInfoItemModern("SCORE", "${state.score}", Color(0xFF00FF88))
-                GameInfoItemModern("TIME", formatTime(state.timeLeftSeconds), if(state.timeLeftSeconds < 60) Color.Red else Color.White)
-                GameInfoItemModern("SHUFFLE", "${state.shufflesLeft}", Color(0xFFFFA500))
+                
+                // No timer or shuffles in Daily Challenge
                 
                 Spacer(modifier = Modifier.weight(1f))
                 
@@ -103,23 +101,23 @@ fun CampaignGameScreen(
                         }
                     }
 
-                    if (!state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
+                    if (!state.isLevelStarting) {
                         for (y in 0 until 9) {
                             for (x in 0 until 16) {
                                 val tile = state.board[y][x]
                                 if (tile != null) {
-                                    CampaignTile(viewModel, tile, x, y, tileWidth, tileHeight, tileSpacing)
+                                    DailyTile(viewModel, tile, x, y, tileWidth, tileHeight, tileSpacing)
                                 }
                             }
                         }
                     }
 
                     state.explodingTiles.forEach { explodingTile ->
-                        ExplodingTileEffectCampaign(explodingTile, tileWidth, tileHeight, viewModel)
+                        ExplodingTileEffectDaily(explodingTile, tileWidth, tileHeight, viewModel)
                     }
                 }
 
-                // Level Intro
+                // Intro Visibility
                 androidx.compose.animation.AnimatedVisibility(
                     visible = state.isLevelStarting,
                     enter = fadeIn() + scaleIn(initialScale = 0.8f),
@@ -127,8 +125,8 @@ fun CampaignGameScreen(
                 ) {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("LEVEL ${state.level}", color = Color(0xFFFFD700), fontSize = 48.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                            Text("GET READY!", color = Color.White, fontSize = 24.nonScalableSp())
+                            Text("DAILY CHALLENGE", color = Color(0xFFFFD700), fontSize = 36.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
+                            Text("SOLVE IT WITHOUT SHUFFLES!", color = Color.White, fontSize = 18.nonScalableSp())
                         }
                     }
                 }
@@ -141,45 +139,19 @@ fun CampaignGameScreen(
             PauseDialog(onResume = { viewModel.togglePause() }, onQuit = onBack)
         }
 
-        state.showAdDialog?.let { rewardType ->
-            AdRewardDialog(
-                rewardType = rewardType,
-                onWatchAd = { activity?.let { viewModel.watchAd(it) } },
-                onSkip = { viewModel.skipAdReward() }
-            )
-        }
-
-        if (state.isGameOver && state.showAdDialog == null) {
-            GameOverDialog(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuit = onBack)
+        // In Daily Challenge, we don't have shuffles, so if no moves, it's Game Over
+        if (state.isGameOver) {
+            DailyGameOverDialog(score = state.score, onRetry = { viewModel.startGame(GameMode.DAILY_CHALLENGE) }, onQuit = onBack)
         }
 
         if (state.isVictory) {
-            CampaignVictoryDialog(score = state.score, onQuit = onBack)
-        }
-
-        // 1. Level Clear UI (Intermediate Win UI)
-        if (state.isLevelComplete) {
-            LevelClearDialog(
-                score = state.score,
-                level = state.level,
-                onContinue = { viewModel.showUnlockScreen() }
-            )
-        }
-
-        // 2. Beast Unlock Screen (Adaptive UI)
-        if (state.isShowingUnlock) {
-            val unlockedBeastIndex = (GameConstants.CAMPAIGN_START_BEASTS + state.level - 1).coerceAtMost(GameConstants.UNIQUE_BEASTS - 1)
-            BeastUnlockScreen(
-                beastBitmap = viewModel.monsterBitmaps[unlockedBeastIndex].asImageBitmap(),
-                beastName = "ALPHA BEAST",
-                onContinue = { viewModel.nextLevel() }
-            )
+            DailyVictoryDialog(score = state.score, onQuit = onBack)
         }
     }
 }
 
 @Composable
-fun CampaignVictoryDialog(score: Int, onQuit: () -> Unit) {
+fun DailyGameOverDialog(score: Int, onRetry: () -> Unit, onQuit: () -> Unit) {
     Dialog(onDismissRequest = {}) {
         Card(
             shape = RoundedCornerShape(24.dp),
@@ -190,11 +162,35 @@ fun CampaignVictoryDialog(score: Int, onQuit: () -> Unit) {
                 modifier = Modifier.padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("CAMPAIGN COMPLETE!", color = Color(0xFFFFD700), fontSize = 24.nonScalableSp(), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Text("NO MORE MOVES!", color = Color.Red, fontSize = 24.nonScalableSp(), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("You have conquered all beasts!", color = Color.White, textAlign = TextAlign.Center, fontSize = 14.nonScalableSp())
+                Text("In Daily Challenge, there are no shuffles.", color = Color.White, textAlign = TextAlign.Center, fontSize = 14.nonScalableSp())
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Total Score: $score", color = Color(0xFF00FF88), fontSize = 20.nonScalableSp(), fontWeight = FontWeight.Bold)
+                Text("Score: $score", color = Color.White, fontSize = 20.nonScalableSp())
+                Spacer(modifier = Modifier.height(24.dp))
+                ModernButton(text = "RETRY", onClick = onRetry, color = Color(0xFF0288D1))
+                Spacer(modifier = Modifier.height(8.dp))
+                ModernButton(text = "QUIT", onClick = onQuit, color = Color(0xFFD32F2F))
+            }
+        }
+    }
+}
+
+@Composable
+fun DailyVictoryDialog(score: Int, onQuit: () -> Unit) {
+    Dialog(onDismissRequest = {}) {
+        Card(
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
+            modifier = Modifier.padding(16.dp).width(300.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("CHALLENGE COMPLETE!", color = Color(0xFFFFD700), fontSize = 22.nonScalableSp(), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Score: $score", color = Color.White, fontSize = 20.nonScalableSp())
                 Spacer(modifier = Modifier.height(24.dp))
                 ModernButton(text = "BACK TO MENU", onClick = onQuit, color = Color(0xFF388E3C))
             }
@@ -203,94 +199,7 @@ fun CampaignVictoryDialog(score: Int, onQuit: () -> Unit) {
 }
 
 @Composable
-fun LevelClearDialog(score: Int, level: Int, onContinue: () -> Unit) {
-    Dialog(onDismissRequest = {}) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-            modifier = Modifier.padding(16.dp).width(280.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("LEVEL $level CLEAR!", color = Color(0xFF00FF88), fontSize = 24.nonScalableSp(), fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Score: $score", color = Color.White, fontSize = 18.nonScalableSp())
-                Spacer(modifier = Modifier.height(24.dp))
-                ModernButton(text = "CONTINUE", onClick = onContinue, color = Color(0xFF0288D1))
-            }
-        }
-    }
-}
-
-@Composable
-fun BeastUnlockScreen(beastBitmap: androidx.compose.ui.graphics.ImageBitmap, beastName: String, onContinue: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
-        ) {
-            Text(
-                "NEW BEAST UNLOCKED!",
-                color = Color(0xFFFFD700),
-                fontSize = 28.nonScalableSp(),
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center
-            )
-            
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            Box(
-                modifier = Modifier
-                    .size(200.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.4f), Color.Transparent)
-                        )
-                    )
-                    .border(2.dp, Color(0xFF00E5FF), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    bitmap = beastBitmap,
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(0.7f),
-                    contentScale = ContentScale.Fit
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                beastName,
-                color = Color.White,
-                fontSize = 22.nonScalableSp(),
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(48.dp))
-            
-            Button(
-                onClick = onContinue,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
-                shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.width(200.dp).height(50.dp)
-            ) {
-                Text("AWESOME", color = Color.Black, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-fun CampaignTile(
+fun DailyTile(
     viewModel: GameViewModel,
     tile: Tile,
     x: Int, y: Int,
@@ -313,7 +222,7 @@ fun CampaignTile(
 }
 
 @Composable
-fun ExplodingTileEffectCampaign(
+fun ExplodingTileEffectDaily(
     explodingTile: ExplodingTile,
     tileWidth: androidx.compose.ui.unit.Dp, tileHeight: androidx.compose.ui.unit.Dp,
     viewModel: GameViewModel

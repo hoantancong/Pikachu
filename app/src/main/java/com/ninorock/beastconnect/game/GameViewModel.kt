@@ -31,33 +31,47 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     private var isInitialized = false
 
-    fun startGame() {
-        if (isInitialized) return
-        
+    fun startGame(mode: GameMode = GameMode.CLASSIC) {
+        isInitialized = false
         viewModelScope.launch {
+            val totalTiles = when(mode) {
+                GameMode.CLASSIC -> GameConstants.TOTAL_SLOTS
+                GameMode.DAILY_CHALLENGE -> GameConstants.TOTAL_SLOTS
+                GameMode.CAMPAIGN -> (GameConstants.CAMPAIGN_START_TILES + (0) * GameConstants.CAMPAIGN_TILES_INCREMENT).coerceAtMost(GameConstants.TOTAL_SLOTS)
+            }
+            
+            val initialTime = when(mode) {
+                GameMode.CLASSIC -> GameConstants.LEVEL_TIME_SECONDS
+                GameMode.DAILY_CHALLENGE -> Int.MAX_VALUE // Unlimited time
+                GameMode.CAMPAIGN -> (totalTiles / 2) * 10
+            }
+            
             state = GameState(
-                board = GameLogic.initializeBoard(),
+                gameMode = mode,
+                board = GameLogic.initializeBoard(mode, 1),
                 level = 1,
-                shufflesLeft = GameConstants.INITIAL_SHUFFLES,
+                shufflesLeft = if (mode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_SHUFFLES,
                 hintsLeft = 3,
-                timeLeftSeconds = GameConstants.LEVEL_TIME_SECONDS,
+                timeLeftSeconds = initialTime,
                 isLevelStarting = true
             )
             isInitialized = true
-            delay(2000) // Hiển thị hiệu ứng level starting trong 2 giây
+            delay(2000)
             state = state.copy(isLevelStarting = false)
-            startTimer()
+            if (mode != GameMode.DAILY_CHALLENGE) {
+                startTimer()
+            }
         }
     }
 
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
-            while (state.timeLeftSeconds > 0 && !state.isPaused && !state.isGameOver && state.showAdDialog == null && !state.isLevelStarting) {
+            while (state.timeLeftSeconds > 0 && !state.isPaused && !state.isGameOver && state.showAdDialog == null && !state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
                 delay(1000)
                 state = state.copy(timeLeftSeconds = state.timeLeftSeconds - 1)
             }
-            if (state.timeLeftSeconds <= 0 && state.showAdDialog == null && !state.isLevelStarting) {
+            if (state.timeLeftSeconds <= 0 && state.showAdDialog == null && !state.isLevelStarting && !state.isVictory && !state.isLevelComplete && !state.isShowingUnlock) {
                 state = state.copy(showAdDialog = AdRewardType.EXTRA_TIME)
             }
         }
@@ -65,7 +79,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onTileClick(x: Int, y: Int) {
         soundManager.playClick()
-        if (state.isPaused || state.isGameOver || state.isVictory || state.showAdDialog != null || state.isLevelStarting) return
+        if (state.isPaused || state.isGameOver || state.isVictory || state.showAdDialog != null || state.isLevelStarting || state.isLevelComplete || state.isShowingUnlock) return
         val currentTile = state.board[y][x] ?: return
 
         hintTiles = null
@@ -122,57 +136,78 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             
             delay(300) 
 
-            GameLogic.applyGravity(newBoard, state.level)
+            GameLogic.applyGravity(newBoard, state.level, state.gameMode)
             
-            var newScore = state.score + GameConstants.SCORE_PER_MATCH
-            var newLevel = state.level
-            var nextBoard = newBoard
-            var victory = false
-            
+            val newScore = state.score + GameConstants.SCORE_PER_MATCH
+            val maxLevels = if (state.gameMode == GameMode.CLASSIC) GameConstants.TOTAL_CLASSIC_LEVELS else GameConstants.TOTAL_CAMPAIGN_LEVELS
+
             if (GameLogic.isBoardEmpty(newBoard)) {
-                if (state.level < GameConstants.TOTAL_LEVELS) {
-                    newLevel++
-                    state = state.copy(isLevelStarting = true, level = newLevel)
-                    nextBoard = GameLogic.initializeBoard()
-                    delay(2000)
-                    state = state.copy(isLevelStarting = false, timeLeftSeconds = GameConstants.LEVEL_TIME_SECONDS)
-                    startTimer()
+                if (state.gameMode == GameMode.DAILY_CHALLENGE) {
+                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = emptyList())
+                } else if (state.level < maxLevels) {
+                    state = state.copy(board = newBoard, score = newScore, isLevelComplete = true, explodingTiles = emptyList())
                 } else {
-                    victory = true
+                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = emptyList())
                 }
             } else {
-                while (!GameLogic.hasValidMoves(nextBoard)) {
+                val nextBoard = newBoard
+                if (!GameLogic.hasValidMoves(nextBoard)) {
                     if (state.shufflesLeft > 0) {
-                        GameLogic.shuffle(nextBoard)
-                        state = state.copy(shufflesLeft = state.shufflesLeft - 1)
+                        while (!GameLogic.hasValidMoves(nextBoard)) {
+                            GameLogic.shuffle(nextBoard)
+                            state = state.copy(shufflesLeft = state.shufflesLeft - 1)
+                            if (state.shufflesLeft <= 0) break
+                        }
+                        if (!GameLogic.hasValidMoves(nextBoard) && state.shufflesLeft <= 0) {
+                            state = state.copy(showAdDialog = AdRewardType.EXTRA_SHUFFLES)
+                        }
                     } else {
-                        state = state.copy(showAdDialog = AdRewardType.EXTRA_SHUFFLES)
-                        break
+                        if (state.gameMode == GameMode.DAILY_CHALLENGE) {
+                            state = state.copy(isGameOver = true)
+                        } else {
+                            state = state.copy(showAdDialog = AdRewardType.EXTRA_SHUFFLES)
+                        }
                     }
                 }
+                state = state.copy(board = nextBoard, score = newScore, explodingTiles = emptyList())
             }
-
-            state = state.copy(
-                board = nextBoard,
-                score = newScore,
-                level = newLevel,
-                isVictory = victory,
-                explodingTiles = emptyList()
-            )
             
             firstSelectedTile = null
             connectingPath = null
         }
     }
 
+    fun showUnlockScreen() {
+        state = state.copy(isLevelComplete = false, isShowingUnlock = true)
+    }
+
+    fun nextLevel() {
+        viewModelScope.launch {
+            val newLevel = state.level + 1
+            val totalTiles = (GameConstants.CAMPAIGN_START_TILES + (newLevel - 1) * GameConstants.CAMPAIGN_TILES_INCREMENT).coerceAtMost(GameConstants.TOTAL_SLOTS)
+            val nextLevelTime = if (state.gameMode == GameMode.CLASSIC) GameConstants.LEVEL_TIME_SECONDS else (totalTiles / 2) * 10
+            
+            state = state.copy(
+                isShowingUnlock = false,
+                isLevelStarting = true,
+                level = newLevel,
+                board = GameLogic.initializeBoard(state.gameMode, newLevel),
+                timeLeftSeconds = nextLevelTime
+            )
+            delay(2000)
+            state = state.copy(isLevelStarting = false)
+            startTimer()
+        }
+    }
+
     fun togglePause() {
         soundManager.playClick()
         state = state.copy(isPaused = !state.isPaused)
-        if (!state.isPaused) startTimer()
+        if (!state.isPaused && state.gameMode != GameMode.DAILY_CHALLENGE) startTimer()
     }
 
     fun showHint() {
-        if (state.isPaused || state.isGameOver || state.isVictory || state.showAdDialog != null || state.isLevelStarting) return
+        if (state.isPaused || state.isGameOver || state.isVictory || state.showAdDialog != null || state.isLevelStarting || state.isLevelComplete || state.isShowingUnlock) return
         
         if (state.hintsLeft <= 0) {
             state = state.copy(showAdDialog = AdRewardType.EXTRA_HINTS)
@@ -189,10 +224,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
         for (i in 0 until points.size) {
             for (j in i + 1 until points.size) {
-                if (GameLogic.checkPath(state.board, points[i], points[j]) != null) {
-                    hintTiles = Pair(points[i], points[j])
-                    state = state.copy(hintsLeft = state.hintsLeft - 1)
-                    return
+                val t1 = state.board[points[i].y][points[i].x]
+                val t2 = state.board[points[j].y][points[j].x]
+                if (t1?.bitmapIndex == t2?.bitmapIndex) {
+                    if (GameLogic.checkPath(state.board, points[i], points[j]) != null) {
+                        hintTiles = Pair(points[i], points[j])
+                        state = state.copy(hintsLeft = state.hintsLeft - 1)
+                        return
+                    }
                 }
             }
         }
@@ -209,7 +248,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         when (type) {
             AdRewardType.EXTRA_TIME -> {
                 state = state.copy(
-                    timeLeftSeconds = state.timeLeftSeconds + 300, // + 5 minutes
+                    timeLeftSeconds = state.timeLeftSeconds + 300, 
                     showAdDialog = null
                 )
                 startTimer()
@@ -236,7 +275,6 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val lastType = state.showAdDialog
         state = state.copy(showAdDialog = null)
         
-        // Only game over if it was mandatory resource depletion
         if (lastType == AdRewardType.EXTRA_TIME || lastType == AdRewardType.EXTRA_SHUFFLES) {
             state = state.copy(isGameOver = true)
         }

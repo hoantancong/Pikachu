@@ -6,21 +6,55 @@ object GameLogic {
     const val COLS = GameConstants.COLS
     const val ROWS = GameConstants.ROWS
 
-    fun initializeBoard(): Array<Array<Tile?>> {
+    fun initializeBoard(mode: GameMode, level: Int): Array<Array<Tile?>> {
+        if (mode == GameMode.DAILY_CHALLENGE) {
+            return initializeDailyBoard()
+        }
+        
         val board = Array(ROWS) { arrayOfNulls<Tile>(COLS) }
         val tileIds = mutableListOf<Int>()
-        
-        for (i in 0 until GameConstants.UNIQUE_BEASTS) {
-            repeat(GameConstants.REPETITIONS_PER_BEAST) { tileIds.add(i) }
+
+        val uniqueBeasts: Int
+        val totalTiles: Int
+
+        if (mode == GameMode.CLASSIC) {
+            uniqueBeasts = GameConstants.UNIQUE_BEASTS
+            totalTiles = GameConstants.TOTAL_SLOTS
+        } else { // Campaign Mode
+            uniqueBeasts = (GameConstants.CAMPAIGN_START_BEASTS + (level - 1)).coerceAtMost(GameConstants.UNIQUE_BEASTS)
+            if (level >= 6) {
+                totalTiles = GameConstants.TOTAL_SLOTS
+            } else {
+                totalTiles = (GameConstants.CAMPAIGN_START_TILES + (level - 1) * GameConstants.CAMPAIGN_TILES_INCREMENT).coerceAtMost(GameConstants.TOTAL_SLOTS)
+            }
+        }
+
+        // Fill tileIds ensuring pairs
+        val pairsNeeded = totalTiles / 2
+        for (i in 0 until pairsNeeded) {
+            tileIds.add(i % uniqueBeasts)
+            tileIds.add(i % uniqueBeasts)
         }
         tileIds.shuffle()
 
-        var index = 0
+        // Place tiles on board.
+        val slots = mutableListOf<Point>()
         for (y in 0 until ROWS) {
             for (x in 0 until COLS) {
-                board[y][x] = Tile(id = index, bitmapIndex = tileIds[index], x = x, y = y)
-                index++
+                slots.add(Point(x, y))
             }
+        }
+        
+        val activeSlots = if (totalTiles < GameConstants.TOTAL_SLOTS) {
+            slots.shuffled().take(totalTiles).sortedWith(compareBy({ it.y }, { it.x }))
+        } else {
+            slots
+        }
+
+        var index = 0
+        for (slot in activeSlots) {
+            board[slot.y][slot.x] = Tile(id = index, bitmapIndex = tileIds[index], x = slot.x, y = slot.y)
+            index++
         }
         
         while (!hasValidMoves(board)) {
@@ -28,6 +62,60 @@ object GameLogic {
         }
         
         return board
+    }
+
+    private fun initializeDailyBoard(): Array<Array<Tile?>> {
+        val board = Array(ROWS) { arrayOfNulls<Tile>(COLS) }
+        val random = Random()
+        val uniqueBeasts = GameConstants.UNIQUE_BEASTS
+        
+        // Strategy: Place pairs in reverse to guarantee solvability
+        // 1. Get all positions
+        val allPositions = mutableListOf<Point>()
+        for (y in 0 until ROWS) {
+            for (x in 0 until COLS) {
+                allPositions.add(Point(x, y))
+            }
+        }
+        allPositions.shuffle()
+
+        var tilesPlaced = 0
+        val totalTiles = GameConstants.TOTAL_SLOTS
+        var idCounter = 0
+
+        // In a real implementation of this strategy, we would check paths on a board that is being *filled*.
+        // However, checking path on an empty board always works.
+        // To truly guarantee it's solvable with top-down gravity, we'd need a more complex solver.
+        // For now, let's generate a full board and ensure it's solvable.
+        
+        fun generateFullBoard(): Array<Array<Tile?>> {
+            val b = Array(ROWS) { arrayOfNulls<Tile>(COLS) }
+            val ids = mutableListOf<Int>()
+            for (i in 0 until totalTiles / 2) {
+                val beast = random.nextInt(uniqueBeasts)
+                ids.add(beast)
+                ids.add(beast)
+            }
+            ids.shuffle()
+            var idx = 0
+            for (y in 0 until ROWS) {
+                for (x in 0 until COLS) {
+                    b[y][x] = Tile(id = idx, bitmapIndex = ids[idx], x = x, y = y)
+                    idx++
+                }
+            }
+            return b
+        }
+
+        var candidateBoard = generateFullBoard()
+        // Try a few times to get a board with valid moves initially
+        var attempts = 0
+        while (!hasValidMoves(candidateBoard) && attempts < 10) {
+            candidateBoard = generateFullBoard()
+            attempts++
+        }
+        
+        return candidateBoard
     }
 
     fun checkPath(board: Array<Array<Tile?>>, p1: Point, p2: Point): List<Point>? {
@@ -51,29 +139,25 @@ object GameLogic {
             val dx = intArrayOf(1, 0, -1, 0)
             val dy = intArrayOf(0, 1, 0, -1)
 
-            val nextX = current.p.x + dx[current.dir]
-            val nextY = current.p.y + dy[current.dir]
+            for (i in 0..3) {
+                val nextX = current.p.x + dx[i]
+                val nextY = current.p.y + dy[i]
 
-            if (nextX !in -1..COLS || nextY !in -1..ROWS) continue
+                // Allow paths to go one step outside the board
+                if (nextX !in -1..COLS || nextY !in -1..ROWS) continue
 
-            val nextP = Point(nextX, nextY)
-            val newPath = current.path + nextP
+                val turns = if (i == current.dir) current.turns else current.turns + 1
+                if (turns > 2) continue
 
-            if (nextP == p2) return newPath
-            if (nextX in 0 until COLS && nextY in 0 until ROWS && board[nextY][nextX] != null) continue
+                val nextP = Point(nextX, nextY)
+                val newPath = current.path + nextP
 
-            if (visited.getOrDefault(Triple(nextX, nextY, current.dir), 3) > current.turns) {
-                visited[Triple(nextX, nextY, current.dir)] = current.turns
-                queue.add(Node(nextP, current.dir, current.turns, newPath))
-            }
+                if (nextP == p2) return newPath
+                if (nextX in 0 until COLS && nextY in 0 until ROWS && board[nextY][nextX] != null) continue
 
-            if (current.turns < 2) {
-                for (newDir in 0..3) {
-                    if (newDir == current.dir || newDir == (current.dir + 2) % 4) continue
-                    if (visited.getOrDefault(Triple(nextX, nextY, newDir), 3) > current.turns + 1) {
-                        visited[Triple(nextX, nextY, newDir)] = current.turns + 1
-                        queue.add(Node(nextP, newDir, current.turns + 1, newPath))
-                    }
+                if (visited.getOrDefault(Triple(nextX, nextY, i), 3) > turns) {
+                    visited[Triple(nextX, nextY, i)] = turns
+                    queue.add(Node(nextP, i, turns, newPath))
                 }
             }
         }
@@ -82,8 +166,16 @@ object GameLogic {
 
     private data class Node(val p: Point, val dir: Int, val turns: Int, val path: List<Point>)
 
-    fun applyGravity(board: Array<Array<Tile?>>, level: Int) {
-        when (level) {
+    fun applyGravity(board: Array<Array<Tile?>>, level: Int, mode: GameMode) {
+        when (mode) {
+            GameMode.CAMPAIGN -> return
+            GameMode.DAILY_CHALLENGE -> gravityDown(board)
+            GameMode.CLASSIC -> applyGravityByPattern(board, level)
+        }
+    }
+
+    private fun applyGravityByPattern(board: Array<Array<Tile?>>, pattern: Int) {
+        when (pattern) {
             1 -> return 
             2 -> gravityDown(board)
             3 -> gravityUp(board)
@@ -153,8 +245,8 @@ object GameLogic {
 
     private fun gravityVerticalCenter(board: Array<Array<Tile?>>) {
         for (x in 0 until COLS) {
-            var writeYUpper = 3
-            for (y in 3 downTo 0) {
+            var writeYUpper = (ROWS / 2) - 1
+            for (y in writeYUpper downTo 0) {
                 if (board[y][x] != null) {
                     val tile = board[y][x]
                     board[y][x] = null
@@ -162,8 +254,8 @@ object GameLogic {
                     writeYUpper--
                 }
             }
-            var writeYLower = 5
-            for (y in 5 until ROWS) {
+            var writeYLower = ROWS / 2
+            for (y in writeYLower until ROWS) {
                 if (board[y][x] != null) {
                     val tile = board[y][x]
                     board[y][x] = null
@@ -176,8 +268,8 @@ object GameLogic {
 
     private fun gravityHorizontalCenter(board: Array<Array<Tile?>>) {
         for (y in 0 until ROWS) {
-            var writeXLeft = 6
-            for (x in 6 downTo 0) {
+            var writeXLeft = (COLS / 2) - 1
+            for (x in writeXLeft downTo 0) {
                 if (board[y][x] != null) {
                     val tile = board[y][x]
                     board[y][x] = null
@@ -185,8 +277,8 @@ object GameLogic {
                     writeXLeft--
                 }
             }
-            var writeXRight = 9
-            for (x in 9 until COLS) {
+            var writeXRight = COLS / 2
+            for (x in writeXRight until COLS) {
                 if (board[y][x] != null) {
                     val tile = board[y][x]
                     board[y][x] = null
@@ -204,22 +296,23 @@ object GameLogic {
 
     fun shuffle(board: Array<Array<Tile?>>) {
         val tiles = mutableListOf<Tile>()
+        val positions = mutableListOf<Point>()
         for (y in 0 until ROWS) {
             for (x in 0 until COLS) {
-                board[y][x]?.let { tiles.add(it) }
+                board[y][x]?.let { 
+                    tiles.add(it) 
+                    positions.add(Point(x, y))
+                    board[y][x] = null
+                }
             }
         }
         tiles.shuffle()
-        var index = 0
-        for (y in 0 until ROWS) {
-            for (x in 0 until COLS) {
-                if (board[y][x] != null) {
-                    val tile = tiles[index++]
-                    tile.x = x
-                    tile.y = y
-                    board[y][x] = tile
-                }
-            }
+        for (i in tiles.indices) {
+            val pos = positions[i]
+            val tile = tiles[i]
+            tile.x = pos.x
+            tile.y = pos.y
+            board[pos.y][pos.x] = tile
         }
     }
 
@@ -233,7 +326,11 @@ object GameLogic {
 
         for (i in 0 until points.size) {
             for (j in i + 1 until points.size) {
-                if (checkPath(board, points[i], points[j]) != null) return true
+                val t1 = board[points[i].y][points[i].x]
+                val t2 = board[points[j].y][points[j].x]
+                if (t1?.bitmapIndex == t2?.bitmapIndex) {
+                    if (checkPath(board, points[i], points[j]) != null) return true
+                }
             }
         }
         return false

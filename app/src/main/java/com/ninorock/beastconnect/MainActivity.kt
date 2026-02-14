@@ -15,6 +15,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.ninorock.beastconnect.ui.CampaignGameScreen
 import com.ninorock.beastconnect.ui.ClassicGameScreen
+import com.ninorock.beastconnect.ui.DailyChallengeScreen
 import com.ninorock.beastconnect.ui.MainMenuScreen
 import com.ninorock.beastconnect.ui.Screen
 import com.ninorock.beastconnect.ui.theme.BeastConnectTheme
@@ -51,7 +52,8 @@ fun BeastConnectApp() {
         composable(Screen.MainMenu.route) {
             MainMenuScreen(
                 onClassicClick = { navController.navigate(Screen.ClassicGame.route) },
-                onCampaignClick = { navController.navigate(Screen.CampaignGame.route) }
+                onCampaignClick = { navController.navigate(Screen.CampaignGame.route) },
+                onDailyChallengeClick = { navController.navigate(Screen.DailyChallenge.route) }
             )
         }
         composable(Screen.ClassicGame.route) {
@@ -59,6 +61,9 @@ fun BeastConnectApp() {
         }
         composable(Screen.CampaignGame.route) {
             CampaignGameScreen(onBack = { navController.popBackStack() })
+        }
+        composable(Screen.DailyChallenge.route) {
+            DailyChallengeScreen(onBack = { navController.popBackStack() })
         }
     }
 }

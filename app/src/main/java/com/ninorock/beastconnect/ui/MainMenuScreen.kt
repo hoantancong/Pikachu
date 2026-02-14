@@ -11,7 +11,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MainMenuScreen(
     onClassicClick: () -> Unit,
-    onCampaignClick: () -> Unit
+    onCampaignClick: () -> Unit,
+    onDailyChallengeClick: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -32,6 +33,14 @@ fun MainMenuScreen(
             modifier = Modifier.width(200.dp).padding(8.dp)
         ) {
             Text("Campaign Mode")
+        }
+
+        Button(
+            onClick = onDailyChallengeClick,
+            modifier = Modifier.width(200.dp).padding(8.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFFA500))
+        ) {
+            Text("Daily Challenge")
         }
     }
 }

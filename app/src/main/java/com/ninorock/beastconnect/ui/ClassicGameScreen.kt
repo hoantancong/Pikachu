@@ -23,7 +23,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -38,9 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ninorock.beastconnect.game.AdRewardType
-import com.ninorock.beastconnect.game.GameViewModel
-import com.ninorock.beastconnect.game.Point
+import com.ninorock.beastconnect.game.*
 
 /**
  * Extension function to provide non-scalable SP.
@@ -127,7 +124,7 @@ fun ClassicGameScreen(
                             for (x in 0 until 16) {
                                 val tile = state.board[y][x]
                                 if (tile != null) {
-                                    NormalTile(viewModel, tile, x, y, tileWidth, tileHeight, tileSpacing)
+                                    ClassicTile(viewModel, tile, x, y, tileWidth, tileHeight, tileSpacing)
                                 }
                             }
                         }
@@ -336,96 +333,102 @@ fun VictoryDialog(score: Int, onPlayAgain: () -> Unit, onQuit: () -> Unit) {
 }
 
 @Composable
-private fun NormalTile(
+fun BeastTileUI(
     viewModel: GameViewModel,
-    tile: com.ninorock.beastconnect.game.Tile,
+    tile: Tile,
+    isSelected: Boolean,
+    isHint: Boolean,
+    tileWidth: androidx.compose.ui.unit.Dp,
+    tileHeight: androidx.compose.ui.unit.Dp,
+    tileSpacing: androidx.compose.ui.unit.Dp,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "tile_scale")
+    val elementIndex = tile.elementIndex
+    val bgColor = GameConstants.ELEMENT_BACKGROUNDS.getOrElse(elementIndex) { Color(0xFF1A1A1A) }
+    val glowColor = GameConstants.ELEMENT_GLOW_COLORS.getOrElse(elementIndex) { Color.White }
+
+    Box(
+        modifier = Modifier
+            .offset(x = tileWidth * tile.x, y = tileHeight * tile.y)
+            .size(tileWidth, tileHeight)
+            .padding(tileSpacing)
+            .scale(scale)
+            .clip(RoundedCornerShape(8.dp))
+            .background(bgColor)
+            .border(
+                width = if (isSelected || isHint) 2.dp else 0.5.dp,
+                color = when {
+                    isSelected -> Color.Yellow
+                    isHint -> Color.Cyan
+                    else -> Color.White.copy(alpha = 0.2f)
+                },
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        // Light Glow for foreground
+        Box(
+            modifier = Modifier
+                .fillMaxSize(0.8f)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(glowColor.copy(alpha = 0.3f), Color.Transparent)
+                    )
+                )
+        )
+
+        Image(
+            bitmap = viewModel.monsterBitmaps[tile.bitmapIndex].asImageBitmap(),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier.fillMaxSize(0.85f)
+        )
+    }
+}
+
+@Composable
+private fun ClassicTile(
+    viewModel: GameViewModel,
+    tile: Tile,
     x: Int, y: Int,
     tileWidth: androidx.compose.ui.unit.Dp, tileHeight: androidx.compose.ui.unit.Dp,
     tileSpacing: androidx.compose.ui.unit.Dp
 ) {
     val isSelected = viewModel.firstSelectedTile?.x == x && viewModel.firstSelectedTile?.y == y
     val isHint = viewModel.hintTiles?.first == Point(x, y) || viewModel.hintTiles?.second == Point(x, y)
-    val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "")
-
-    val infiniteTransition = rememberInfiniteTransition(label = "hint_shine")
-    val shinePosition by infiniteTransition.animateFloat(
-        initialValue = -0.5f,
-        targetValue = 1.5f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
-        label = "shine"
+    
+    BeastTileUI(
+        viewModel = viewModel,
+        tile = tile,
+        isSelected = isSelected,
+        isHint = isHint,
+        tileWidth = tileWidth,
+        tileHeight = tileHeight,
+        tileSpacing = tileSpacing,
+        onClick = { viewModel.onTileClick(x, y) }
     )
-
-    val shineBrush = Brush.linearGradient(
-        colors = listOf(
-            Color.Transparent, 
-            Color.White.copy(alpha = 0.5f), 
-            Color.Transparent
-        ),
-        start = Offset(0f, 0f),
-        end = Offset(tileWidth.value, tileHeight.value)
-    )
-
-    Box(
-        modifier = Modifier
-            .offset(x = tileWidth * x, y = tileHeight * y)
-            .size(tileWidth, tileHeight)
-            .padding(tileSpacing)
-            .scale(scale)
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color.White.copy(alpha = 0.1f))
-            .border(
-                width = if (isSelected || isHint) 2.dp else 0.5.dp,
-                color = when {
-                    isSelected -> Color.Yellow
-                    isHint -> Color.Cyan
-                    else -> Color.Gray.copy(alpha = 0.5f)
-                },
-                shape = RoundedCornerShape(4.dp)
-            )
-            .clickable { viewModel.onTileClick(x, y) }
-    ) {
-        Image(
-            bitmap = viewModel.monsterBitmaps[tile.bitmapIndex].asImageBitmap(),
-            contentDescription = null,
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize()
-        )
-        
-        if (isHint) {
-            Box(modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer(alpha = 0.99f) // for compose bug
-                .drawWithCache {
-                    onDrawWithContent {
-                        drawContent()
-                        translate(left = shinePosition * size.width) {
-                            drawRect(brush = shineBrush)
-                        }
-                    }
-                }
-            )
-        }
-    }
 }
 
 @Composable
 private fun ExplodingTileEffect(
-    explodingTile: com.ninorock.beastconnect.game.ExplodingTile,
+    explodingTile: ExplodingTile,
     tileWidth: androidx.compose.ui.unit.Dp, tileHeight: androidx.compose.ui.unit.Dp,
     viewModel: GameViewModel
 ) {
-    val transition = rememberInfiniteTransition(label = "")
+    val transition = rememberInfiniteTransition(label = "explosion")
     val scale by transition.animateFloat(
         initialValue = 1f,
         targetValue = 1.5f,
         animationSpec = infiniteRepeatable(tween(300), RepeatMode.Restart),
-        label = ""
+        label = "scale"
     )
     val alpha by transition.animateFloat(
         initialValue = 1f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(tween(300), RepeatMode.Restart),
-        label = ""
+        label = "alpha"
     )
 
     Box(
@@ -435,11 +438,15 @@ private fun ExplodingTileEffect(
             .padding(1.dp)
             .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
     ) {
-        Image(
-            bitmap = viewModel.monsterBitmaps[explodingTile.tile.bitmapIndex].asImageBitmap(),
-            contentDescription = "exploding tile",
-            contentScale = ContentScale.FillBounds,
-            modifier = Modifier.fillMaxSize()
+        BeastTileUI(
+            viewModel = viewModel,
+            tile = explodingTile.tile,
+            isSelected = false,
+            isHint = false,
+            tileWidth = tileWidth,
+            tileHeight = tileHeight,
+            tileSpacing = 1.dp,
+            onClick = {}
         )
     }
 }
