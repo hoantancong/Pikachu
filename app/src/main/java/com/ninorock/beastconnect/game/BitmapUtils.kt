@@ -7,8 +7,20 @@ import com.ninorock.beastconnect.R
 
 object BitmapUtils {
     fun sliceBeastBitmap(context: Context): List<Bitmap> {
+        return sliceBitmap(context, R.drawable.beast_main)
+    }
+
+    fun sliceFoodBitmap(context: Context): List<Bitmap> {
+        return sliceBitmap(context, R.drawable.food_tile)
+    }
+
+    fun sliceGemBitmap(context: Context): List<Bitmap> {
+        return sliceBitmap(context, R.drawable.gem_tile)
+    }
+
+    private fun sliceBitmap(context: Context, resourceId: Int): List<Bitmap> {
         val options = BitmapFactory.Options().apply { inScaled = false }
-        val source = BitmapFactory.decodeResource(context.resources, R.drawable.beast_tile, options) ?: return emptyList()
+        val source = BitmapFactory.decodeResource(context.resources, resourceId, options) ?: return emptyList()
         
         val tiles = mutableListOf<Bitmap>()
         val tileWidth = source.width / 6

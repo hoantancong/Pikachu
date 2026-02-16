@@ -12,7 +12,8 @@ object GameConstants {
     const val TOTAL_ROWS = 6
     
     const val INITIAL_SHUFFLES = 3
-    const val LEVEL_TIME_SECONDS = 300 // 5 minutes
+    const val CLASSIC_LEVEL_TIME_SECONDS = 600 // 10 minutes
+    const val LEVEL_TIME_SECONDS = CLASSIC_LEVEL_TIME_SECONDS
     const val SCORE_PER_MATCH = 100
     
     const val TOTAL_CLASSIC_LEVELS = 8

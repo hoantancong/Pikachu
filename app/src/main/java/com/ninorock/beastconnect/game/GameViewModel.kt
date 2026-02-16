@@ -2,6 +2,7 @@ package com.ninorock.beastconnect.game
 
 import android.app.Activity
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -20,16 +21,71 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         private set
 
     private var timerJob: Job? = null
+    
     val monsterBitmaps = BitmapUtils.sliceBeastBitmap(application)
+    val foodBitmaps = BitmapUtils.sliceFoodBitmap(application)
+    val gemBitmaps = BitmapUtils.sliceGemBitmap(application)
+    
+    val currentBitmaps: List<android.graphics.Bitmap>
+        get() = when (state.currentTileType) {
+            TileType.BEAST -> monsterBitmaps
+            TileType.FOOD -> foodBitmaps
+            TileType.GEM -> gemBitmaps
+        }
+
+    // Keep monsterBitmaps for backwards compatibility in UI if needed, 
+    // but better to use a generic name.
+    val tileBitmaps: List<android.graphics.Bitmap> get() = currentBitmaps
+
     private val soundManager = SoundManager(application)
     private val vibrator = getSystemService(application, Vibrator::class.java)
     val adManager = AdManager(application)
+    
+    private val prefs = application.getSharedPreferences("game_prefs", Context.MODE_PRIVATE)
 
     var firstSelectedTile by mutableStateOf<Point?>(null)
     var connectingPath by mutableStateOf<List<Point>?>(null)
     var hintTiles by mutableStateOf<Pair<Point, Point>?>(null)
 
     private var isInitialized = false
+
+    init {
+        loadSettings()
+    }
+
+    private fun loadSettings() {
+        val unlocked = prefs.getStringSet("unlocked_tiles", setOf(TileType.BEAST.name)) ?: setOf(TileType.BEAST.name)
+        val current = prefs.getString("current_tile_type", TileType.BEAST.name) ?: TileType.BEAST.name
+        
+        state = state.copy(
+            unlockedTileTypes = unlocked.map { TileType.valueOf(it) }.toSet(),
+            currentTileType = TileType.valueOf(current)
+        )
+    }
+
+    private fun saveSettings() {
+        prefs.edit().apply {
+            putStringSet("unlocked_tiles", state.unlockedTileTypes.map { it.name }.toSet())
+            putString("current_tile_type", state.currentTileType.name)
+            apply()
+        }
+    }
+
+    fun selectTileType(type: TileType, activity: Activity? = null) {
+        if (state.unlockedTileTypes.contains(type)) {
+            state = state.copy(currentTileType = type)
+            saveSettings()
+        } else {
+            val adType = when (type) {
+                TileType.FOOD -> AdRewardType.UNLOCK_FOOD
+                TileType.GEM -> AdRewardType.UNLOCK_GEM
+                else -> null
+            }
+            if (adType != null && activity != null) {
+                state = state.copy(showAdDialog = adType)
+            }
+        }
+    }
 
     fun startGame(mode: GameMode = GameMode.CLASSIC) {
         isInitialized = false
@@ -46,14 +102,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 GameMode.CAMPAIGN -> (totalTiles / 2) * 10
             }
             
-            state = GameState(
+            state = state.copy(
                 gameMode = mode,
                 board = GameLogic.initializeBoard(mode, 1),
                 level = 1,
                 shufflesLeft = if (mode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_SHUFFLES,
                 hintsLeft = 3,
                 timeLeftSeconds = initialTime,
-                isLevelStarting = true
+                isLevelStarting = true,
+                isGameOver = false,
+                isVictory = false,
+                isLevelComplete = false,
+                isShowingUnlock = false,
+                isPaused = false, // Đảm bảo không bị Pause khi bắt đầu
+                score = 0
             )
             isInitialized = true
             delay(2000)
@@ -124,9 +186,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             connectingPath = path
             delay(150)
 
-            val newExplodingTiles = state.explodingTiles + 
-                ExplodingTile(matchedTile1, System.currentTimeMillis()) +
-                ExplodingTile(matchedTile2, System.currentTimeMillis())
+            val myExplodingTiles = listOf(
+                ExplodingTile(matchedTile1.copy(), System.currentTimeMillis()),
+                ExplodingTile(matchedTile2.copy(), System.currentTimeMillis())
+            )
+            
+            val newExplodingTiles = state.explodingTiles + myExplodingTiles
             
             val newBoard = state.board.map { it.copyOf() }.toTypedArray()
             newBoard[p1.y][p1.x] = null
@@ -143,11 +208,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
             if (GameLogic.isBoardEmpty(newBoard)) {
                 if (state.gameMode == GameMode.DAILY_CHALLENGE) {
-                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = emptyList())
+                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = state.explodingTiles.filter { it !in myExplodingTiles })
                 } else if (state.level < maxLevels) {
-                    state = state.copy(board = newBoard, score = newScore, isLevelComplete = true, explodingTiles = emptyList())
+                    state = state.copy(board = newBoard, score = newScore, isLevelComplete = true, explodingTiles = state.explodingTiles.filter { it !in myExplodingTiles })
                 } else {
-                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = emptyList())
+                    state = state.copy(board = newBoard, score = newScore, isVictory = true, explodingTiles = state.explodingTiles.filter { it !in myExplodingTiles })
                 }
             } else {
                 val nextBoard = newBoard
@@ -169,7 +234,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                         }
                     }
                 }
-                state = state.copy(board = nextBoard, score = newScore, explodingTiles = emptyList())
+                state = state.copy(board = nextBoard, score = newScore, explodingTiles = state.explodingTiles.filter { it !in myExplodingTiles })
             }
             
             firstSelectedTile = null
@@ -190,6 +255,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             state = state.copy(
                 isShowingUnlock = false,
                 isLevelStarting = true,
+                isPaused = false,
                 level = newLevel,
                 board = GameLogic.initializeBoard(state.gameMode, newLevel),
                 timeLeftSeconds = nextLevelTime
@@ -267,6 +333,22 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     hintsLeft = state.hintsLeft + 1,
                     showAdDialog = null
                 )
+            }
+            AdRewardType.UNLOCK_FOOD -> {
+                state = state.copy(
+                    unlockedTileTypes = state.unlockedTileTypes + TileType.FOOD,
+                    currentTileType = TileType.FOOD,
+                    showAdDialog = null
+                )
+                saveSettings()
+            }
+            AdRewardType.UNLOCK_GEM -> {
+                state = state.copy(
+                    unlockedTileTypes = state.unlockedTileTypes + TileType.GEM,
+                    currentTileType = TileType.GEM,
+                    showAdDialog = null
+                )
+                saveSettings()
             }
         }
     }

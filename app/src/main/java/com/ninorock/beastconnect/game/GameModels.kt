@@ -17,7 +17,9 @@ data class GameState(
     val isShowingUnlock: Boolean = false,
     val isLevelStarting: Boolean = false,
     val showAdDialog: AdRewardType? = null,
-    val explodingTiles: List<ExplodingTile> = emptyList()
+    val explodingTiles: List<ExplodingTile> = emptyList(),
+    val unlockedTileTypes: Set<TileType> = setOf(TileType.BEAST),
+    val currentTileType: TileType = TileType.BEAST
 )
 
 data class Tile(val id: Int, var x: Int, var y: Int, val bitmapIndex: Int) {
@@ -33,5 +35,9 @@ enum class GameMode {
 }
 
 enum class AdRewardType {
-    EXTRA_TIME, EXTRA_SHUFFLES, EXTRA_HINTS
+    EXTRA_TIME, EXTRA_SHUFFLES, EXTRA_HINTS, UNLOCK_FOOD, UNLOCK_GEM
+}
+
+enum class TileType {
+    BEAST, FOOD, GEM
 }
