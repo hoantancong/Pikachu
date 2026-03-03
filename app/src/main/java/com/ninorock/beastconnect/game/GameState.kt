@@ -1,4 +1,4 @@
 package com.ninorock.beastconnect.game
 
-// This file is being deprecated in favor of GameModels.kt
-// Deleting content to avoid redeclaration errors until it can be safely removed.
+// This file is being removed to avoid redeclaration of GameState
+// The data class GameState is now located in GameModels.kt

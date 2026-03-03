@@ -19,7 +19,17 @@ data class GameState(
     val showAdDialog: AdRewardType? = null,
     val explodingTiles: List<ExplodingTile> = emptyList(),
     val unlockedTileTypes: Set<TileType> = setOf(TileType.BEAST),
-    val currentTileType: TileType = TileType.BEAST
+    val currentTileType: TileType = TileType.BEAST,
+    val hasUsedTimeRewardInLevel: Boolean = false,
+    val showQuitConfirmDialog: Boolean = false,
+    val isDailyChallengeCompleted: Boolean = false,
+    val showCampaignMenu: Boolean = false,
+    val savedCampaignLevel: Int = 0,
+    val showNewGameConfirm: Boolean = false,
+    val bonusScore: Int = 0,
+    val isSoundEnabled: Boolean = true,
+    val isVibrationEnabled: Boolean = true,
+    val showSettings: Boolean = false
 )
 
 data class Tile(val id: Int, var x: Int, var y: Int, val bitmapIndex: Int) {

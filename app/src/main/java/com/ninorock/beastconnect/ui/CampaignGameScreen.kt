@@ -1,13 +1,12 @@
 package com.ninorock.beastconnect.ui
 
 import android.app.Activity
+import android.view.WindowManager
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -18,22 +17,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ninorock.beastconnect.R
 import com.ninorock.beastconnect.game.*
 
 @Composable
@@ -45,9 +42,18 @@ fun CampaignGameScreen(
     val tileSpacing = 1.dp
     val context = LocalContext.current
     val activity = context as? Activity
+    val density = LocalDensity.current
 
-    LaunchedEffect(Unit) {
-        viewModel.startGame(GameMode.CAMPAIGN)
+    DisposableEffect(Unit) {
+        val window = activity?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    val quitAction = {
+        viewModel.quitGame(activity, onBack)
     }
 
     Box(
@@ -67,21 +73,29 @@ fun CampaignGameScreen(
                     .width(110.dp)
                     .fillMaxHeight()
                     .background(Color.Black.copy(alpha = 0.6f))
-                    .padding(vertical = 12.dp, horizontal = 6.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(horizontal = 6.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("CAMPAIGN", color = Color(0xFFFFD700), fontSize = 16.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                GameInfoItemModern("LEVEL", "${state.level}/30", Color.White)
-                GameInfoItemModern("SCORE", "${state.score}", Color(0xFF00FF88))
-                GameInfoItemModern("TIME", formatTime(state.timeLeftSeconds), if(state.timeLeftSeconds < 60) Color.Red else Color.White)
-                GameInfoItemModern("SHUFFLE", "${state.shufflesLeft}", Color(0xFFFFA500))
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("BEAST", color = Color(0xFFFFD700), fontSize = 20.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
                 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.height(16.dp))
+                GameInfoItemModern(stringResource(R.string.level).uppercase(), "${state.level}/30", Color.White)
+                Spacer(modifier = Modifier.height(12.dp))
+                GameInfoItemModern(stringResource(R.string.score).uppercase(), "${state.score}", Color(0xFF00FF88))
+                Spacer(modifier = Modifier.height(12.dp))
+                GameInfoItemModern(stringResource(R.string.time).uppercase(), formatTime(state.timeLeftSeconds), if(state.timeLeftSeconds < 60) Color.Red else Color.White)
+                Spacer(modifier = Modifier.height(12.dp))
+                GameInfoItemModern(stringResource(R.string.shuffle).uppercase(), "${state.shufflesLeft}", Color(0xFFFFA500))
                 
-                ModernButton(text = "HINT: ${state.hintsLeft}", onClick = { viewModel.showHint() }, color = Color(0xFF0288D1))
-                ModernButton(text = if (state.isPaused) "RESUME" else "PAUSE", onClick = { viewModel.togglePause() }, color = Color(0xFF388E3C))
-                ModernButton(text = "QUIT", onClick = onBack, color = Color(0xFFD32F2F))
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                ModernButton(text = "${stringResource(R.string.hint).uppercase()}: ${state.hintsLeft}", onClick = { viewModel.showHint() }, color = Color(0xFF0288D1))
+                Spacer(modifier = Modifier.height(12.dp))
+                ModernButton(text = if (state.isPaused) stringResource(R.string.resume).uppercase() else stringResource(R.string.pause).uppercase(), onClick = { viewModel.togglePause() }, color = Color(0xFF388E3C))
+                
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Game Board
@@ -90,17 +104,13 @@ fun CampaignGameScreen(
                 val boardHeight = maxHeight
                 val tileWidth = boardWidth / 16
                 val tileHeight = boardHeight / 9
+                
+                val tileWidthPx = with(density) { tileWidth.toPx() }
+                val tileHeightPx = with(density) { tileHeight.toPx() }
 
                 Box(modifier = Modifier.size(boardWidth, boardHeight)) {
                     viewModel.connectingPath?.let { path ->
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val p = androidx.compose.ui.graphics.Path()
-                            p.moveTo((path.first().x + 0.5f) * tileWidth.toPx(), (path.first().y + 0.5f) * tileHeight.toPx())
-                            path.drop(1).forEach { 
-                                p.lineTo((it.x + 0.5f) * tileWidth.toPx(), (it.y + 0.5f) * tileHeight.toPx()) 
-                            }
-                            drawPath(p, Color(0xFF00E5FF), style = Stroke(width = 8f, pathEffect = PathEffect.cornerPathEffect(16f)))
-                        }
+                        ConnectingPathCanvas(path, tileWidthPx, tileHeightPx)
                     }
 
                     if (!state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
@@ -108,14 +118,31 @@ fun CampaignGameScreen(
                             for (x in 0 until 16) {
                                 val tile = state.board[y][x]
                                 if (tile != null) {
-                                    CampaignTile(viewModel, tile, x, y, tileWidth, tileHeight, tileSpacing)
+                                    key(tile.id) {
+                                        val isSelected = viewModel.firstSelectedTile?.x == x && viewModel.firstSelectedTile?.y == y
+                                        val isHint = viewModel.hintTiles?.first == Point(x, y) || viewModel.hintTiles?.second == Point(x, y)
+                                        
+                                        BeastTileUI(
+                                            tileBitmaps = viewModel.tileBitmaps,
+                                            tile = tile,
+                                            isSelected = isSelected,
+                                            isHint = isHint,
+                                            isPaused = state.isPaused,
+                                            tileWidth = tileWidth,
+                                            tileHeight = tileHeight,
+                                            tileSpacing = tileSpacing,
+                                            onClick = { viewModel.onTileClick(x, y) }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
 
                     state.explodingTiles.forEach { explodingTile ->
-                        ExplodingTileEffectCampaign(explodingTile, tileWidth, tileHeight, viewModel)
+                        key(explodingTile.tile.id, explodingTile.startTime) {
+                            ExplodingTileEffect(explodingTile, tileWidth, tileHeight, viewModel.tileBitmaps)
+                        }
                     }
                 }
 
@@ -127,8 +154,8 @@ fun CampaignGameScreen(
                 ) {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("LEVEL ${state.level}", color = Color(0xFFFFD700), fontSize = 48.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                            Text("GET READY!", color = Color.White, fontSize = 24.nonScalableSp())
+                            Text("${stringResource(R.string.level).uppercase()} ${state.level}", color = Color(0xFFFFD700), fontSize = 48.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
+                            Text(stringResource(R.string.get_ready), color = Color.White, fontSize = 24.nonScalableSp())
                         }
                     }
                 }
@@ -138,7 +165,18 @@ fun CampaignGameScreen(
         // --- UI Overlays ---
 
         if (state.isPaused) {
-            PauseDialog(onResume = { viewModel.togglePause() }, onQuit = onBack)
+            PauseDialog(
+                onResume = { viewModel.togglePause() }, 
+                onQuitRequest = { viewModel.requestQuit() },
+                isSoundEnabled = state.isSoundEnabled,
+                onToggleSound = { viewModel.toggleSound() },
+                isVibrationEnabled = state.isVibrationEnabled,
+                onToggleVibration = { viewModel.toggleVibration() }
+            )
+        }
+
+        if (state.showQuitConfirmDialog) {
+            QuitConfirmDialog(onConfirm = quitAction, onCancel = { viewModel.cancelQuit() })
         }
 
         state.showAdDialog?.let { rewardType ->
@@ -150,23 +188,30 @@ fun CampaignGameScreen(
         }
 
         if (state.isGameOver && state.showAdDialog == null) {
-            GameOverDialog(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuit = onBack)
+            GameOverDialog(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuitRequest = { viewModel.requestQuit() })
         }
 
         if (state.isVictory) {
-            CampaignVictoryDialog(score = state.score, onQuit = onBack)
-        }
-
-        // 1. Level Clear UI (Intermediate Win UI)
-        if (state.isLevelComplete) {
-            LevelClearDialog(
-                score = state.score,
-                level = state.level,
-                onContinue = { viewModel.showUnlockScreen() }
+            VictoryDialog(
+                score = state.score, 
+                bonusScore = state.bonusScore, 
+                onPlayAgain = { viewModel.startGame(GameMode.CAMPAIGN) }, 
+                onQuitRequest = { viewModel.requestQuit() },
+                onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } },
+                title = stringResource(R.string.victory)
             )
         }
 
-        // 2. Beast Unlock Screen (Adaptive UI)
+        if (state.isLevelComplete) {
+            LevelClearDialog(
+                score = state.score,
+                bonusScore = state.bonusScore,
+                level = state.level,
+                onContinue = { viewModel.showUnlockScreen() },
+                onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } }
+            )
+        }
+
         if (state.isShowingUnlock) {
             val unlockedBeastIndex = (GameConstants.CAMPAIGN_START_BEASTS + state.level - 1).coerceAtMost(GameConstants.UNIQUE_BEASTS - 1)
             BeastUnlockScreen(
@@ -179,170 +224,87 @@ fun CampaignGameScreen(
 }
 
 @Composable
-fun CampaignVictoryDialog(score: Int, onQuit: () -> Unit) {
-    Dialog(onDismissRequest = {}) {
-        Card(
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-            modifier = Modifier.padding(16.dp).width(300.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("CAMPAIGN COMPLETE!", color = Color(0xFFFFD700), fontSize = 24.nonScalableSp(), fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("You have conquered all beasts!", color = Color.White, textAlign = TextAlign.Center, fontSize = 14.nonScalableSp())
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Total Score: $score", color = Color(0xFF00FF88), fontSize = 20.nonScalableSp(), fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(24.dp))
-                ModernButton(text = "BACK TO MENU", onClick = onQuit, color = Color(0xFF388E3C))
-            }
-        }
-    }
-}
-
-@Composable
-fun LevelClearDialog(score: Int, level: Int, onContinue: () -> Unit) {
-    Dialog(onDismissRequest = {}) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1A1A1A)),
-            modifier = Modifier.padding(16.dp).width(280.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("LEVEL $level CLEAR!", color = Color(0xFF00FF88), fontSize = 24.nonScalableSp(), fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Score: $score", color = Color.White, fontSize = 18.nonScalableSp())
-                Spacer(modifier = Modifier.height(24.dp))
-                ModernButton(text = "CONTINUE", onClick = onContinue, color = Color(0xFF0288D1))
-            }
-        }
-    }
-}
-
-@Composable
 fun BeastUnlockScreen(beastBitmap: androidx.compose.ui.graphics.ImageBitmap, beastName: String, onContinue: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+    val isSmallScreen = screenHeight < 600.dp
+
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.9f)),
+            .background(Color.Black.copy(alpha = 0.95f)),
         contentAlignment = Alignment.Center
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(32.dp)
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = 24.dp, vertical = if (isSmallScreen) 8.dp else 24.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "NEW BEAST UNLOCKED!",
+                stringResource(R.string.new_beast_unlocked),
                 color = Color(0xFFFFD700),
-                fontSize = 28.nonScalableSp(),
+                fontSize = if (isSmallScreen) 24.nonScalableSp() else 32.nonScalableSp(),
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
             
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(if (isSmallScreen) 12.dp else 24.dp))
             
             Box(
                 modifier = Modifier
-                    .size(200.dp)
+                    .size(if (isSmallScreen) 160.dp else 220.dp)
                     .clip(CircleShape)
                     .background(
                         Brush.radialGradient(
-                            colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.4f), Color.Transparent)
+                            colors = listOf(Color(0xFF00E5FF).copy(alpha = 0.5f), Color.Transparent)
                         )
                     )
-                    .border(2.dp, Color(0xFF00E5FF), CircleShape),
+                    .border(3.dp, Color(0xFF00E5FF), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     bitmap = beastBitmap,
                     contentDescription = null,
-                    modifier = Modifier.fillMaxSize(0.7f),
+                    modifier = Modifier.fillMaxSize(0.75f),
                     contentScale = ContentScale.Fit
                 )
+                ShimmerStreakEffect(color = Color(0xFF00E5FF))
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(if (isSmallScreen) 8.dp else 16.dp))
             
             Text(
                 beastName,
                 color = Color.White,
-                fontSize = 22.nonScalableSp(),
-                fontWeight = FontWeight.Bold
+                fontSize = if (isSmallScreen) 18.nonScalableSp() else 24.nonScalableSp(),
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
             )
             
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(if (isSmallScreen) 16.dp else 32.dp))
             
             Button(
                 onClick = onContinue,
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00FF88)),
                 shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.width(200.dp).height(50.dp)
+                modifier = Modifier
+                    .width(if (isSmallScreen) 180.dp else 220.dp)
+                    .height(if (isSmallScreen) 44.dp else 56.dp)
             ) {
-                Text("AWESOME", color = Color.Black, fontWeight = FontWeight.Bold)
+                Text(
+                    stringResource(R.string.continue_text).uppercase(), 
+                    color = Color.Black, 
+                    fontWeight = FontWeight.Black,
+                    fontSize = if (isSmallScreen) 14.nonScalableSp() else 16.nonScalableSp()
+                )
+            }
+            
+            if (isSmallScreen) {
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
-    }
-}
-
-@Composable
-fun CampaignTile(
-    viewModel: GameViewModel,
-    tile: Tile,
-    x: Int, y: Int,
-    tileWidth: androidx.compose.ui.unit.Dp, tileHeight: androidx.compose.ui.unit.Dp,
-    tileSpacing: androidx.compose.ui.unit.Dp
-) {
-    val isSelected = viewModel.firstSelectedTile?.x == x && viewModel.firstSelectedTile?.y == y
-    val isHint = viewModel.hintTiles?.first == Point(x, y) || viewModel.hintTiles?.second == Point(x, y)
-    
-    BeastTileUI(
-        viewModel = viewModel,
-        tile = tile,
-        isSelected = isSelected,
-        isHint = isHint,
-        tileWidth = tileWidth,
-        tileHeight = tileHeight,
-        tileSpacing = tileSpacing,
-        onClick = { viewModel.onTileClick(x, y) }
-    )
-}
-
-@Composable
-fun ExplodingTileEffectCampaign(
-    explodingTile: ExplodingTile,
-    tileWidth: androidx.compose.ui.unit.Dp, tileHeight: androidx.compose.ui.unit.Dp,
-    viewModel: GameViewModel
-) {
-    val transition = rememberInfiniteTransition(label = "explosion")
-    val scale by transition.animateFloat(
-        initialValue = 1f, targetValue = 2f,
-        animationSpec = infiniteRepeatable(tween(400), RepeatMode.Restart), label = "scale"
-    )
-    val alpha by transition.animateFloat(
-        initialValue = 1f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(400), RepeatMode.Restart), label = "alpha"
-    )
-
-    Box(
-        modifier = Modifier
-            .offset(x = tileWidth * explodingTile.tile.x, y = tileHeight * explodingTile.tile.y)
-            .size(tileWidth, tileHeight)
-            .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
-    ) {
-        BeastTileUI(
-            viewModel = viewModel,
-            tile = explodingTile.tile,
-            isSelected = false,
-            isHint = false,
-            tileWidth = tileWidth,
-            tileHeight = tileHeight,
-            tileSpacing = 1.dp,
-            onClick = {}
-        )
     }
 }

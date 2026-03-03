@@ -3,6 +3,7 @@ package com.ninorock.beastconnect
 import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.google.android.gms.games.PlayGames
+import com.google.android.gms.games.PlayGamesSdk
 import com.ninorock.beastconnect.game.GameViewModel
 import com.ninorock.beastconnect.ui.CampaignGameScreen
 import com.ninorock.beastconnect.ui.ClassicGameScreen
@@ -27,6 +30,9 @@ import com.ninorock.beastconnect.ui.theme.BeastConnectTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Initialize Play Games SDK
+        PlayGamesSdk.initialize(this)
         
         // 1. Bật chế độ Full Screen (Immersive Mode)
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -49,7 +55,6 @@ fun BeastConnectApp() {
     val viewModel: GameViewModel = viewModel()
     val activity = LocalContext.current as? Activity
     
-    // Xóa Scaffold padding để đạt được Full Screen thực sự
     NavHost(
         navController = navController,
         startDestination = Screen.MainMenu.route,
@@ -67,16 +72,27 @@ fun BeastConnectApp() {
                 onTileTypeClick = { viewModel.selectTileType(it, activity) },
                 showAdDialog = state.showAdDialog,
                 onWatchAd = { activity?.let { viewModel.watchAd(it) } },
-                onSkipAd = { viewModel.skipAdReward() }
+                onSkipAd = { viewModel.skipAdReward() },
+                onLeaderboardClick = { activity?.let { viewModel.showLeaderboards(it) } }
             )
         }
         composable(Screen.ClassicGame.route) {
+            BackHandler(enabled = true) {
+                // Do nothing, disable back button to prevent accidental exit
+                // User must use Pause Menu to Quit
+            }
             ClassicGameScreen(onBack = { navController.popBackStack() }, viewModel = viewModel)
         }
         composable(Screen.CampaignGame.route) {
+            BackHandler(enabled = true) {
+                // Disable back button
+            }
             CampaignGameScreen(onBack = { navController.popBackStack() }, viewModel = viewModel)
         }
         composable(Screen.DailyChallenge.route) {
+            BackHandler(enabled = true) {
+                // Disable back button
+            }
             DailyChallengeScreen(onBack = { navController.popBackStack() }, viewModel = viewModel)
         }
     }

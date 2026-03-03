@@ -7,13 +7,16 @@ object GameConstants {
     const val COLS = 16
     const val TOTAL_SLOTS = ROWS * COLS
     
-    const val UNIQUE_BEASTS = 36 // 6x6 grid
+    const val UNIQUE_BEASTS = 36 
     const val BEASTS_PER_ROW = 6
     const val TOTAL_ROWS = 6
     
     const val INITIAL_SHUFFLES = 3
-    const val CLASSIC_LEVEL_TIME_SECONDS = 600 // 10 minutes
-    const val LEVEL_TIME_SECONDS = CLASSIC_LEVEL_TIME_SECONDS
+    const val INITIAL_TIME_CLASSIC = 120 // 5 minutes
+    const val REWARD_AD_TIME_SECONDS = 120 // 2 minutes
+    const val TIME_ADD_PER_MATCH = 10 // 15 seconds
+
+    const val LEVEL_TIME_SECONDS = INITIAL_TIME_CLASSIC
     const val SCORE_PER_MATCH = 100
     
     const val TOTAL_CLASSIC_LEVELS = 8

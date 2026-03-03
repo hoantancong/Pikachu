@@ -16,6 +16,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.BeastConnect">
 
+        <!-- Google Play Games Services Application ID -->
+        <meta-data
+            android:name="com.google.android.gms.games.APP_ID"
+            android:value="@string/game_services_project_id" />
+
         <!-- Sample AdMob App ID: ca-app-pub-3940256099942544~3347511713 -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
