@@ -27,6 +27,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -38,187 +39,224 @@ fun CampaignGameScreen(
     onBack: () -> Unit,
     viewModel: GameViewModel = viewModel()
 ) {
-    val state = viewModel.state
-    val tileSpacing = 1.dp
+    val configuration = LocalConfiguration.current
     val context = LocalContext.current
-    val activity = context as? Activity
-    val density = LocalDensity.current
+    val displayMetrics = context.resources.displayMetrics
+    
+    // Virtual Density setup
+    val designWidth = 800f 
+    val customDensityValue = displayMetrics.widthPixels / designWidth
+    val customDensity = Density(density = customDensityValue, fontScale = 1f)
 
-    DisposableEffect(Unit) {
-        val window = activity?.window
-        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose {
-            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-    }
+    CompositionLocalProvider(LocalDensity provides customDensity) {
+        val state = viewModel.state
+        val tileSpacing = 1.dp
+        val activity = context as? Activity
+        val density = LocalDensity.current
 
-    val quitAction = {
-        viewModel.quitGame(activity, onBack)
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))
-                )
-            )
-    ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-
-            // Sidebar
-            Column(
-                modifier = Modifier
-                    .width(110.dp)
-                    .fillMaxHeight()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .padding(horizontal = 6.dp)
-                    .verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("BEAST", color = Color(0xFFFFD700), fontSize = 20.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                GameInfoItemModern(stringResource(R.string.level).uppercase(), "${state.level}/30", Color.White)
-                Spacer(modifier = Modifier.height(12.dp))
-                GameInfoItemModern(stringResource(R.string.score).uppercase(), "${state.score}", Color(0xFF00FF88))
-                Spacer(modifier = Modifier.height(12.dp))
-                GameInfoItemModern(stringResource(R.string.time).uppercase(), formatTime(state.timeLeftSeconds), if(state.timeLeftSeconds < 60) Color.Red else Color.White)
-                Spacer(modifier = Modifier.height(12.dp))
-                GameInfoItemModern(stringResource(R.string.shuffle).uppercase(), "${state.shufflesLeft}", Color(0xFFFFA500))
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                ModernButton(text = "${stringResource(R.string.hint).uppercase()}: ${state.hintsLeft}", onClick = { viewModel.showHint() }, color = Color(0xFF0288D1))
-                Spacer(modifier = Modifier.height(12.dp))
-                ModernButton(text = if (state.isPaused) stringResource(R.string.resume).uppercase() else stringResource(R.string.pause).uppercase(), onClick = { viewModel.togglePause() }, color = Color(0xFF388E3C))
-                
-                Spacer(modifier = Modifier.height(12.dp))
+        DisposableEffect(Unit) {
+            val window = activity?.window
+            window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            onDispose {
+                window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
+        }
 
-            // Game Board
-            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                val boardWidth = maxWidth
-                val boardHeight = maxHeight
-                val tileWidth = boardWidth / 16
-                val tileHeight = boardHeight / 9
-                
-                val tileWidthPx = with(density) { tileWidth.toPx() }
-                val tileHeightPx = with(density) { tileHeight.toPx() }
+        val quitAction = {
+            viewModel.quitGame(activity, onBack)
+        }
 
-                Box(modifier = Modifier.size(boardWidth, boardHeight)) {
-                    viewModel.connectingPath?.let { path ->
-                        ConnectingPathCanvas(path, tileWidthPx, tileHeightPx)
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364))
+                    )
+                )
+        ) {
+            Row(modifier = Modifier.fillMaxSize()) {
+
+                // Sidebar
+                Column(
+                    modifier = Modifier
+                        .width(110.dp)
+                        .fillMaxHeight()
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 6.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("BEAST", color = Color(0xFFFFD700), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    GameInfoItemModern(stringResource(R.string.level).uppercase(), "${state.level}/30", Color.White)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GameInfoItemModern(stringResource(R.string.score).uppercase(), "${state.score}", Color(0xFF00FF88))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GameInfoItemModern(stringResource(R.string.time).uppercase(), formatTime(state.timeLeftSeconds), if(state.timeLeftSeconds < 60) Color.Red else Color.White)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    GameInfoItemModern(stringResource(R.string.shuffle).uppercase(), "${state.shufflesLeft}", Color(0xFFFFA500))
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconGameButton(
+                            iconRes = R.drawable.searchbtn,
+                            onClick = { viewModel.showHint() },
+                            contentDescription = "Hint",
+                            badgeCount = state.hintsLeft,
+                            size = 42.dp,
+                            iconSize = 30.dp
+                        )
+
+                        IconGameButton(
+                            iconRes = R.drawable.pausebtn,
+                            onClick = { viewModel.togglePause() },
+                            contentDescription = "Pause",
+                            size = 42.dp,
+                            iconSize = 24.dp
+                        )
                     }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-                    if (!state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
-                        for (y in 0 until 9) {
-                            for (x in 0 until 16) {
-                                val tile = state.board[y][x]
-                                if (tile != null) {
-                                    key(tile.id) {
-                                        val isSelected = viewModel.firstSelectedTile?.x == x && viewModel.firstSelectedTile?.y == y
-                                        val isHint = viewModel.hintTiles?.first == Point(x, y) || viewModel.hintTiles?.second == Point(x, y)
-                                        
-                                        BeastTileUI(
-                                            tileBitmaps = viewModel.tileBitmaps,
-                                            tile = tile,
-                                            isSelected = isSelected,
-                                            isHint = isHint,
-                                            isPaused = state.isPaused,
-                                            tileWidth = tileWidth,
-                                            tileHeight = tileHeight,
-                                            tileSpacing = tileSpacing,
-                                            onClick = { viewModel.onTileClick(x, y) }
-                                        )
+                // Game Board
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp), // Tạo biên trái và phải (tối thiểu 10 pixel ~ 16dp)
+                    contentAlignment = Alignment.Center
+                ) {
+                    val boardWidth = maxWidth
+                    val boardHeight = maxHeight
+                    val tileWidth = boardWidth / 16
+                    val tileHeight = boardHeight / 9
+                    
+                    val tileWidthPx = with(density) { tileWidth.toPx() }
+                    val tileHeightPx = with(density) { tileHeight.toPx() }
+
+                    Box(modifier = Modifier.size(boardWidth, boardHeight)) {
+                        viewModel.connectingPath?.let { path ->
+                            ConnectingPathCanvas(path, tileWidthPx, tileHeightPx)
+                        }
+
+                        if (!state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
+                            for (y in 0 until 9) {
+                                for (x in 0 until 16) {
+                                    val tile = state.board[y][x]
+                                    if (tile != null) {
+                                        key(tile.id) {
+                                            val isSelected = viewModel.firstSelectedTile?.x == x && viewModel.firstSelectedTile?.y == y
+                                            val isHint = viewModel.hintTiles?.first == Point(x, y) || viewModel.hintTiles?.second == Point(x, y)
+                                            
+                                            BeastTileUI(
+                                                tileBitmaps = viewModel.tileBitmaps,
+                                                tile = tile,
+                                                isSelected = isSelected,
+                                                isHint = isHint,
+                                                isPaused = state.isPaused,
+                                                tileWidth = tileWidth,
+                                                tileHeight = tileHeight,
+                                                tileSpacing = tileSpacing,
+                                                onClick = { viewModel.onTileClick(x, y) }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    state.explodingTiles.forEach { explodingTile ->
-                        key(explodingTile.tile.id, explodingTile.startTime) {
-                            ExplodingTileEffect(explodingTile, tileWidth, tileHeight, viewModel.tileBitmaps)
+                        state.explodingTiles.forEach { explodingTile ->
+                            key(explodingTile.tile.id, explodingTile.startTime) {
+                                ExplodingTileEffect(explodingTile, tileWidth, tileHeight, viewModel.tileBitmaps)
+                            }
                         }
                     }
-                }
 
-                // Level Intro
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = state.isLevelStarting,
-                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                    exit = fadeOut() + scaleOut(targetScale = 1.2f)
-                ) {
-                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${stringResource(R.string.level).uppercase()} ${state.level}", color = Color(0xFFFFD700), fontSize = 48.nonScalableSp(), fontWeight = FontWeight.ExtraBold)
-                            Text(stringResource(R.string.get_ready), color = Color.White, fontSize = 24.nonScalableSp())
+                    // Level Intro
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = state.isLevelStarting,
+                        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+                        exit = fadeOut() + scaleOut(targetScale = 1.2f)
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)), contentAlignment = Alignment.Center) {
+                            val introTitleFontSize = 48.sp
+                            val introSubFontSize = 24.sp
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("${stringResource(R.string.level).uppercase()} ${state.level}", color = Color(0xFFFFD700), fontSize = introTitleFontSize, fontWeight = FontWeight.ExtraBold)
+                                Text(stringResource(R.string.get_ready), color = Color.White, fontSize = introSubFontSize)
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // --- UI Overlays ---
+            // --- UI Overlays ---
 
-        if (state.isPaused) {
-            PauseDialog(
-                onResume = { viewModel.togglePause() }, 
-                onQuitRequest = { viewModel.requestQuit() },
-                isSoundEnabled = state.isSoundEnabled,
-                onToggleSound = { viewModel.toggleSound() },
-                isVibrationEnabled = state.isVibrationEnabled,
-                onToggleVibration = { viewModel.toggleVibration() }
-            )
-        }
+            if (state.isPaused) {
+                MessageBoxManager.Pause(
+                    onResume = { viewModel.togglePause() }, 
+                    onQuitRequest = { viewModel.requestQuit() },
+                    isSoundEnabled = state.isSoundEnabled,
+                    onToggleSound = { viewModel.toggleSound() },
+                    isVibrationEnabled = state.isVibrationEnabled,
+                    onToggleVibration = { viewModel.toggleVibration() }
+                )
+            }
 
-        if (state.showQuitConfirmDialog) {
-            QuitConfirmDialog(onConfirm = quitAction, onCancel = { viewModel.cancelQuit() })
-        }
+            if (state.showQuitConfirmDialog) {
+                MessageBoxManager.QuitConfirm(onConfirm = quitAction, onCancel = { viewModel.cancelQuit() })
+            }
 
-        state.showAdDialog?.let { rewardType ->
-            AdRewardDialog(
-                rewardType = rewardType,
-                onWatchAd = { activity?.let { viewModel.watchAd(it) } },
-                onSkip = { viewModel.skipAdReward() }
-            )
-        }
+            state.showAdDialog?.let { rewardType ->
+                MessageBoxManager.AdReward(
+                    rewardType = rewardType,
+                    onWatchAd = { activity?.let { viewModel.watchAd(it) } },
+                    onSkip = { viewModel.skipAdReward() }
+                )
+            }
 
-        if (state.isGameOver && state.showAdDialog == null) {
-            GameOverDialog(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuitRequest = { viewModel.requestQuit() })
-        }
+            if (state.isGameOver && state.showAdDialog == null) {
+                MessageBoxManager.GameOver(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuitRequest = { viewModel.requestQuit() })
+            }
 
-        if (state.isVictory) {
-            VictoryDialog(
-                score = state.score, 
-                bonusScore = state.bonusScore, 
-                onPlayAgain = { viewModel.startGame(GameMode.CAMPAIGN) }, 
-                onQuitRequest = { viewModel.requestQuit() },
-                onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } },
-                title = stringResource(R.string.victory)
-            )
-        }
+            if (state.isVictory) {
+                MessageBoxManager.Victory(
+                    score = state.score, 
+                    bonusScore = state.bonusScore, 
+                    onPlayAgain = { viewModel.startGame(GameMode.CAMPAIGN) }, 
+                    onQuitRequest = { viewModel.requestQuit() },
+                    onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } },
+                    title = stringResource(R.string.victory)
+                )
+            }
 
-        if (state.isLevelComplete) {
-            LevelClearDialog(
-                score = state.score,
-                bonusScore = state.bonusScore,
-                level = state.level,
-                onContinue = { viewModel.showUnlockScreen() },
-                onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } }
-            )
-        }
+            if (state.isLevelComplete) {
+                MessageBoxManager.LevelClear(
+                    score = state.score,
+                    bonusScore = state.bonusScore,
+                    level = state.level,
+                    onContinue = { viewModel.showUnlockScreen() },
+                    onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } }
+                )
+            }
 
-        if (state.isShowingUnlock) {
-            val unlockedBeastIndex = (GameConstants.CAMPAIGN_START_BEASTS + state.level - 1).coerceAtMost(GameConstants.UNIQUE_BEASTS - 1)
-            BeastUnlockScreen(
-                beastBitmap = viewModel.monsterBitmaps[unlockedBeastIndex].asImageBitmap(),
-                beastName = "ALPHA BEAST",
-                onContinue = { viewModel.nextLevel() }
-            )
+            if (state.isShowingUnlock) {
+                val unlockedBeastIndex = (GameConstants.CAMPAIGN_START_BEASTS + state.level - 1).coerceAtMost(GameConstants.UNIQUE_BEASTS - 1)
+                BeastUnlockScreen(
+                    beastBitmap = viewModel.monsterBitmaps[unlockedBeastIndex].asImageBitmap(),
+                    beastName = "ALPHA BEAST",
+                    onContinue = { viewModel.nextLevel() }
+                )
+            }
         }
     }
 }
@@ -246,7 +284,7 @@ fun BeastUnlockScreen(beastBitmap: androidx.compose.ui.graphics.ImageBitmap, bea
             Text(
                 stringResource(R.string.new_beast_unlocked),
                 color = Color(0xFFFFD700),
-                fontSize = if (isSmallScreen) 24.nonScalableSp() else 32.nonScalableSp(),
+                fontSize = if (isSmallScreen) 24.sp else 32.sp,
                 fontWeight = FontWeight.ExtraBold,
                 textAlign = TextAlign.Center
             )
@@ -279,7 +317,7 @@ fun BeastUnlockScreen(beastBitmap: androidx.compose.ui.graphics.ImageBitmap, bea
             Text(
                 beastName,
                 color = Color.White,
-                fontSize = if (isSmallScreen) 18.nonScalableSp() else 24.nonScalableSp(),
+                fontSize = if (isSmallScreen) 18.sp else 24.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
             )
@@ -298,7 +336,7 @@ fun BeastUnlockScreen(beastBitmap: androidx.compose.ui.graphics.ImageBitmap, bea
                     stringResource(R.string.continue_text).uppercase(), 
                     color = Color.Black, 
                     fontWeight = FontWeight.Black,
-                    fontSize = if (isSmallScreen) 14.nonScalableSp() else 16.nonScalableSp()
+                    fontSize = if (isSmallScreen) 14.sp else 16.sp
                 )
             }
             

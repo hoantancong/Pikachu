@@ -1,7 +1,9 @@
 package com.ninorock.beastconnect
 
 import android.app.Activity
+import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -34,11 +36,14 @@ class MainActivity : ComponentActivity() {
         // Initialize Play Games SDK
         PlayGamesSdk.initialize(this)
         
-        // 1. Bật chế độ Full Screen (Immersive Mode)
+        // 1. Cấu hình hiển thị tràn Notch/Cutout (cho Android 9+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
+        // 2. Thiết lập chế độ Full Screen Immersive
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        val controller = WindowInsetsControllerCompat(window, window.decorView)
-        controller.hide(WindowInsetsCompat.Type.systemBars())
-        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        hideSystemUI()
         
         enableEdgeToEdge()
         setContent {
@@ -47,6 +52,21 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemUI()
+        }
+    }
+
+    private fun hideSystemUI() {
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        // BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE giúp vuốt để hiện thanh hệ thống tạm thời và tự ẩn sau đó
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        // Ẩn cả Status Bar và Navigation Bar
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+    }
 }
 
 @Composable
@@ -54,6 +74,9 @@ fun BeastConnectApp() {
     val navController = rememberNavController()
     val viewModel: GameViewModel = viewModel()
     val activity = LocalContext.current as? Activity
+    
+    // Tự động đăng nhập Google Play Games khi ứng dụng khởi chạy
+    activity?.let { viewModel.initializeLeaderboard(it) }
     
     NavHost(
         navController = navController,
@@ -78,7 +101,6 @@ fun BeastConnectApp() {
         }
         composable(Screen.ClassicGame.route) {
             BackHandler(enabled = true) {
-                // Do nothing, disable back button to prevent accidental exit
                 // User must use Pause Menu to Quit
             }
             ClassicGameScreen(onBack = { navController.popBackStack() }, viewModel = viewModel)

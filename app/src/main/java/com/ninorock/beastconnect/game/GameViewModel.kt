@@ -212,7 +212,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 state.savedCampaignLevel.coerceAtLeast(1)
             } else 1
 
-            val initialTime = GameConstants.INITIAL_TIME_CLASSIC
+            // Set initial time only for modes that use it
+            val initialTime = if (mode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_TIME_CLASSIC
             
             state = state.copy(
                 gameMode = mode,
@@ -246,6 +247,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun startTimer() {
+        if (state.gameMode == GameMode.DAILY_CHALLENGE) return
+        
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (state.timeLeftSeconds > 0 && !state.isPaused && !state.isGameOver && state.showAdDialog == null && !state.isLevelStarting && !state.isLevelComplete && !state.isShowingUnlock) {
@@ -261,6 +264,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleTimeOut() {
+        if (state.gameMode == GameMode.DAILY_CHALLENGE) return
+        
         soundManager.playLose()
         if (!state.hasUsedTimeRewardInLevel && adManager.isAdLoaded()) {
             state = state.copy(showAdDialog = AdRewardType.EXTRA_TIME)
@@ -407,6 +412,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun handleNoMoves() {
+        if (state.gameMode == GameMode.DAILY_CHALLENGE) {
+            soundManager.playLose()
+            state = state.copy(isGameOver = true)
+            return
+        }
+        
         soundManager.playLose()
         if (adManager.isAdLoaded()) {
             state = state.copy(showAdDialog = AdRewardType.EXTRA_SHUFFLES)
@@ -432,7 +443,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 val totalScore = state.score + state.bonusScore
                 val newLevel = state.level + 1
-                val nextLevelTime = GameConstants.INITIAL_TIME_CLASSIC 
+                val nextLevelTime = if (state.gameMode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_TIME_CLASSIC 
                 
                 state = state.copy(
                     isLevelComplete = false,
@@ -450,7 +461,9 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 soundManager.playBeginning()
                 delay(2000)
                 state = state.copy(isLevelStarting = false)
-                startTimer()
+                if (state.gameMode != GameMode.DAILY_CHALLENGE) {
+                    startTimer()
+                }
             }
         }
 
@@ -468,9 +481,23 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         else if (state.isPaused) timerJob?.cancel()
     }
 
+    fun pauseTimer() {
+        timerJob?.cancel()
+    }
+
+    fun resumeTimer() {
+        if (!state.isPaused && !state.isGameOver && !state.isVictory && !state.isLevelComplete && state.gameMode != GameMode.DAILY_CHALLENGE) {
+            startTimer()
+        }
+    }
+
     fun requestQuit() {
         soundManager.playClick()
-        state = state.copy(showQuitConfirmDialog = true)
+        if (state.isGameOver || state.isVictory || state.isLevelComplete) {
+            state = state.copy(isPaused = false, showAdDialog = null, isGameOver = false, isVictory = false, isLevelComplete = false, isShowingUnlock = false, showQuitConfirmDialog = false)
+        } else {
+            state = state.copy(showQuitConfirmDialog = true)
+        }
     }
 
     fun cancelQuit() {
@@ -545,6 +572,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         adManager.showRewardedAd(
             activity = activity,
             onAdDismissed = {
+                // If ad dismissed without reward and it was a critical ad, skip it
                 if (state.showAdDialog != null) {
                     skipAdReward()
                 }
@@ -564,7 +592,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     showAdDialog = null,
                     hasUsedTimeRewardInLevel = true
                 )
-                startTimer()
+                if (state.gameMode != GameMode.DAILY_CHALLENGE) startTimer()
             }
             AdRewardType.EXTRA_SHUFFLES -> {
                 val nextBoard = state.board.map { it.copyOf() }.toTypedArray()
@@ -574,14 +602,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                     shufflesLeft = state.shufflesLeft + 5,
                     showAdDialog = null
                 )
-                startTimer()
+                if (state.gameMode != GameMode.DAILY_CHALLENGE) startTimer()
             }
             AdRewardType.EXTRA_HINTS -> {
                 state = state.copy(
                     hintsLeft = state.hintsLeft + 1,
                     showAdDialog = null
                 )
-                startTimer()
+                if (state.gameMode != GameMode.DAILY_CHALLENGE) startTimer()
             }
             AdRewardType.UNLOCK_FOOD -> {
                 state = state.copy(
@@ -607,10 +635,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         val lastType = state.showAdDialog
         state = state.copy(showAdDialog = null)
         
+        // If critical rewards are skipped, trigger game over
         if (lastType == AdRewardType.EXTRA_TIME || lastType == AdRewardType.EXTRA_SHUFFLES) {
             state = state.copy(isGameOver = true)
+        } else if (lastType == AdRewardType.UNLOCK_FOOD || lastType == AdRewardType.UNLOCK_GEM) {
+            // No additional action needed, just closing dialog is enough
         } else {
-            startTimer()
+            // For optional rewards like Hints, resume timer if not daily
+            if (state.gameMode != GameMode.DAILY_CHALLENGE) {
+                startTimer()
+            }
         }
     }
 
