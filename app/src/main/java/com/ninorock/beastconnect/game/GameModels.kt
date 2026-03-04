@@ -17,6 +17,7 @@ data class GameState(
     val isShowingUnlock: Boolean = false,
     val isLevelStarting: Boolean = false,
     val showAdDialog: AdRewardType? = null,
+    val showUnlockTileDialog: TileType? = null,
     val explodingTiles: List<ExplodingTile> = emptyList(),
     val unlockedTileTypes: Set<TileType> = setOf(TileType.BEAST),
     val currentTileType: TileType = TileType.BEAST,

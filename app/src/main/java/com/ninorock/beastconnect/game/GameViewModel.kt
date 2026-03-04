@@ -113,31 +113,15 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun selectTileType(type: TileType, activity: Activity? = null) {
         if (state.unlockedTileTypes.contains(type)) {
-            // If already unlocked, show interstitial if loaded, otherwise just select
-            if (activity != null && adManager.isInterstitialAdLoaded()) {
-                adManager.showInterstitialAd(activity) {
-                    performTileSelection(type)
-                }
-            } else {
-                performTileSelection(type)
-            }
+            performTileSelection(type)
         } else {
-            // Locked tile: requires rewarded ad
-            val adType = when (type) {
-                TileType.FOOD -> AdRewardType.UNLOCK_FOOD
-                TileType.GEM -> AdRewardType.UNLOCK_GEM
-                else -> null
-            }
-            if (adType != null && activity != null) {
-                if (adManager.isAdLoaded()) {
-                    state = state.copy(showAdDialog = adType)
-                } else {
-                    // Ad not ready: inform user and try to load in background
-                    Toast.makeText(getApplication(), "Ad is not ready yet. Please try again in a moment.", Toast.LENGTH_SHORT).show()
-                    adManager.loadRewardedAd()
-                }
-            }
+            state = state.copy(showUnlockTileDialog = type)
         }
+    }
+
+    fun dismissUnlockTileDialog() {
+        soundManager.playClick()
+        state = state.copy(showUnlockTileDialog = null)
     }
 
     private fun performTileSelection(type: TileType) {
@@ -212,8 +196,12 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 state.savedCampaignLevel.coerceAtLeast(1)
             } else 1
 
-            // Set initial time only for modes that use it
-            val initialTime = if (mode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_TIME_CLASSIC
+            // Set initial time based on mode
+            val initialTime = when (mode) {
+                GameMode.DAILY_CHALLENGE -> 0
+                GameMode.CLASSIC -> GameConstants.FIXED_TIME_CLASSIC // 8 minutes fixed
+                GameMode.CAMPAIGN -> GameConstants.INITIAL_TIME_CLASSIC // 2 minutes
+            }
             
             state = state.copy(
                 gameMode = mode,
@@ -232,6 +220,7 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 bonusScore = 0,
                 explodingTiles = emptyList(),
                 showAdDialog = null,
+                showUnlockTileDialog = null,
                 hasUsedTimeRewardInLevel = false,
                 currentTileType = effectiveTileType,
                 showQuitConfirmDialog = false
@@ -340,7 +329,8 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             newBoard[p2.y][p2.x] = null
             
             var newTime = state.timeLeftSeconds
-            if (state.gameMode == GameMode.CLASSIC || state.gameMode == GameMode.CAMPAIGN) {
+            // Do not add time in CLASSIC mode as per request
+            if (state.gameMode == GameMode.CAMPAIGN) {
                 newTime += GameConstants.TIME_ADD_PER_MATCH
             }
             
@@ -443,7 +433,11 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 val totalScore = state.score + state.bonusScore
                 val newLevel = state.level + 1
-                val nextLevelTime = if (state.gameMode == GameMode.DAILY_CHALLENGE) 0 else GameConstants.INITIAL_TIME_CLASSIC 
+                val nextLevelTime = when (state.gameMode) {
+                    GameMode.DAILY_CHALLENGE -> 0
+                    GameMode.CLASSIC -> GameConstants.FIXED_TIME_CLASSIC
+                    GameMode.CAMPAIGN -> GameConstants.INITIAL_TIME_CLASSIC
+                }
                 
                 state = state.copy(
                     isLevelComplete = false,
@@ -568,6 +562,19 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
 
     fun watchAd(activity: Activity) {
         soundManager.playClick()
+        
+        if (state.showUnlockTileDialog != null) {
+            val type = state.showUnlockTileDialog!!
+            adManager.showRewardedAd(
+                activity = activity,
+                onAdDismissed = {},
+                onRewardEarned = {
+                    giveRewardForTileUnlock(type)
+                }
+            )
+            return
+        }
+
         val type = state.showAdDialog ?: return
         adManager.showRewardedAd(
             activity = activity,
@@ -581,6 +588,16 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
                 giveReward(type)
             }
         )
+    }
+
+    private fun giveRewardForTileUnlock(type: TileType) {
+        soundManager.playBonus()
+        state = state.copy(
+            unlockedTileTypes = state.unlockedTileTypes + type,
+            currentTileType = type,
+            showUnlockTileDialog = null
+        )
+        saveSettings()
     }
 
     private fun giveReward(type: AdRewardType) {

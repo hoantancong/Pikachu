@@ -1,5 +1,6 @@
 package com.ninorock.beastconnect.ui
 
+import android.app.Activity
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -56,13 +57,11 @@ fun MainMenuScreen(
     onSkipAd: () -> Unit,
     onLeaderboardClick: () -> Unit
 ) {
-    // Tinh toán mật độ điểm ảnh tùy chỉnh để UI luôn tỷ lệ với màn hình vật lý
     val configuration = LocalConfiguration.current
     val context = LocalContext.current
+    val activity = context as? Activity
     val displayMetrics = context.resources.displayMetrics
     
-    // Sử dụng chiều rộng thực tế (pixels) chia cho một con số chuẩn (ví dụ 800dp cho landscape)
-    // Điều này giúp 1dp luôn chiếm cùng một tỷ lệ phần trăm màn hình bất kể cài đặt hệ thống.
     val designWidth = 800f 
     val customDensityValue = displayMetrics.widthPixels / designWidth
     val customDensity = Density(density = customDensityValue, fontScale = 1f)
@@ -70,7 +69,6 @@ fun MainMenuScreen(
     CompositionLocalProvider(LocalDensity provides customDensity) {
         val state = viewModel.state
         
-        // Title Animation Values
         val infiniteTransition = rememberInfiniteTransition(label = "titleAnimation")
         
         val shimmerOffset by infiniteTransition.animateFloat(
@@ -104,7 +102,6 @@ fun MainMenuScreen(
         )
 
         Box(modifier = Modifier.fillMaxSize()) {
-            // 1. Dynamic Background with Crossfade for smooth transition
             Crossfade(targetState = currentTileType, animationSpec = tween(1000), label = "backgroundFade") { tileType ->
                 val bgRes = when (tileType) {
                     TileType.BEAST -> R.drawable.beast_main
@@ -130,7 +127,6 @@ fun MainMenuScreen(
                     )
             )
 
-            // Settings Button
             Box(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
                 contentAlignment = Alignment.TopEnd
@@ -149,7 +145,6 @@ fun MainMenuScreen(
             ) {
                 Spacer(modifier = Modifier.height(40.dp))
 
-                // Text Shimmer Gradient
                 val textBrush = Brush.linearGradient(
                     colors = listOf(Color(0xFFFFD700), Color(0xFFFFF9C4), Color(0xFFFFD700)),
                     start = Offset(shimmerOffset, 0f),
@@ -162,7 +157,7 @@ fun MainMenuScreen(
                         .wrapContentSize()
                         .graphicsLayer(scaleX = titleScale, scaleY = titleScale),
                     style = TextStyle(
-                        fontSize = 52.sp, // Không cần nonScalableSp vì Density đã khóa fontScale = 1
+                        fontSize = 52.sp,
                         fontWeight = FontWeight.Black,
                         brush = textBrush,
                         shadow = Shadow(
@@ -177,7 +172,6 @@ fun MainMenuScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Main Buttons
                 Column(
                     modifier = Modifier.wrapContentHeight(),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -207,7 +201,6 @@ fun MainMenuScreen(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Bottom Section
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -215,11 +208,10 @@ fun MainMenuScreen(
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Leaderboard Button
                     IconButton(
                         onClick = onLeaderboardClick,
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(64.dp) // Tăng kích thước button BXH lên một chút cho cân đối
                             .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
                             .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
                     ) {
@@ -227,7 +219,7 @@ fun MainMenuScreen(
                             painter = painterResource(id = R.drawable.leaderboard),
                             contentDescription = "Leaderboard",
                             tint = Color.Unspecified,
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                     }
 
@@ -269,6 +261,42 @@ fun MainMenuScreen(
 
             // Dialogs
             showAdDialog?.let { MessageBoxManager.AdReward(it, onWatchAd, onSkipAd) }
+            
+            state.showUnlockTileDialog?.let { tileType ->
+                MessageBoxManager.UnlockTileDialog(
+                    tileType = tileType,
+                    bitmaps = when(tileType) {
+                        TileType.FOOD -> viewModel.foodBitmaps
+                        TileType.GEM -> viewModel.gemBitmaps
+                        else -> emptyList()
+                    },
+                    onUnlock = { activity?.let { viewModel.watchAd(it) } },
+                    onCancel = { viewModel.dismissUnlockTileDialog() }
+                )
+            }
+
+            if (state.showCampaignMenu) {
+                MessageBoxManager.CampaignMenu(
+                    savedLevel = state.savedCampaignLevel,
+                    onContinue = { 
+                        viewModel.continueCampaign()
+                        onCampaignClick()
+                    },
+                    onNewGame = { viewModel.requestNewCampaign() },
+                    onDismiss = { viewModel.hideCampaignMenu() }
+                )
+            }
+
+            if (state.showNewGameConfirm) {
+                MessageBoxManager.NewGameConfirm(
+                    onConfirm = { 
+                        viewModel.startNewCampaign()
+                        onCampaignClick()
+                    },
+                    onCancel = { viewModel.cancelNewCampaign() }
+                )
+            }
+
             if (state.showSettings) {
                 MessageBoxManager.Settings(
                     onDismiss = { viewModel.hideSettings() },
@@ -292,11 +320,11 @@ fun MainMenuButton(
     Button(
         onClick = onClick,
         modifier = Modifier
-            .width(280.dp)
-            .height(56.dp)
-            .shadow(8.dp, RoundedCornerShape(16.dp)),
+            .width(220.dp)
+            .height(48.dp)
+            .shadow(8.dp, RoundedCornerShape(12.dp)),
         colors = ButtonDefaults.buttonColors(containerColor = color),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 8.dp)
     ) {
         Row(
@@ -304,13 +332,13 @@ fun MainMenuButton(
             horizontalArrangement = Arrangement.Center
         ) {
             if (icon != null) {
-                Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(12.dp))
+                Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
             }
             Text(
                 text = text.uppercase(),
                 style = TextStyle(
-                    fontSize = 18.sp,
+                    fontSize = 16.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = Color.White,
                     letterSpacing = 1.sp

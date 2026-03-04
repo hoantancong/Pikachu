@@ -225,7 +225,7 @@ fun CampaignGameScreen(
             }
 
             if (state.isGameOver && state.showAdDialog == null) {
-                MessageBoxManager.GameOver(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuitRequest = { viewModel.requestQuit() })
+                MessageBoxManager.GameOver(score = state.score, onRetry = { viewModel.startGame(GameMode.CAMPAIGN) }, onQuitRequest = { quitAction() })
             }
 
             if (state.isVictory) {
@@ -233,7 +233,7 @@ fun CampaignGameScreen(
                     score = state.score, 
                     bonusScore = state.bonusScore, 
                     onPlayAgain = { viewModel.startGame(GameMode.CAMPAIGN) }, 
-                    onQuitRequest = { viewModel.requestQuit() },
+                    onQuitRequest = { quitAction() },
                     onLeaderboardRequest = { activity?.let { viewModel.showSpecificLeaderboard(it, GameMode.CAMPAIGN) } },
                     title = stringResource(R.string.victory)
                 )
@@ -253,7 +253,7 @@ fun CampaignGameScreen(
                 val unlockedBeastIndex = (GameConstants.CAMPAIGN_START_BEASTS + state.level - 1).coerceAtMost(GameConstants.UNIQUE_BEASTS - 1)
                 BeastUnlockScreen(
                     beastBitmap = viewModel.monsterBitmaps[unlockedBeastIndex].asImageBitmap(),
-                    beastName = "ALPHA BEAST",
+                    beastName = "",
                     onContinue = { viewModel.nextLevel() }
                 )
             }

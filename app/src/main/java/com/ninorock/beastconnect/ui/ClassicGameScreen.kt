@@ -81,7 +81,7 @@ fun ClassicGameScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("BEAST", color = Color(0xFFFFD700), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.classic_mode_title), color = Color(0xFFFFD700), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     GameInfoItemModern(stringResource(R.string.level).uppercase(), "${state.level}", Color.White)

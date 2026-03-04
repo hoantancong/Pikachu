@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">BeastConnect</string>
     <string name="classic_mode">CHẾ ĐỘ CỔ ĐIỂN</string>
+    <string name="classic_mode_title">CỔ ĐIỂN</string>
     <string name="campaign">CHIẾN DỊCH</string>
     <string name="daily_quest">THỬ THÁCH NGÀY</string>
     <string name="relax_and_match">Thư giãn và Kết nối</string>
@@ -45,8 +46,9 @@
     <string name="extra_hints_desc">Xem quảng cáo để nhận thêm 1 lượt gợi ý?</string>
     <string name="unlock_food_desc">Xem quảng cáo để mở khóa bộ hình Food Tiles vĩnh viễn?</string>
     <string name="unlock_gem_desc">Xem quảng cáo để mở khóa bộ hình Gem Tiles vĩnh viễn?</string>
-    <string name="watch_ad_button">XEM QUẢNG CÁO</string>
-    <string name="skip">Bỏ qua</string>
+    <string name="watch_ad_button">XEM VIDEO</string>
+    <string name="Unlock">MỞ KHÓA</string>
+    <string name="skip">BỎ</string>
     <string name="quit_confirm_title">THOÁT GAME?</string>
     <string name="quit_confirm_desc">Bạn có chắc chắn muốn thoát? Mọi tiến trình sẽ bị mất.</string>
     <string name="yes">CÓ</string>
