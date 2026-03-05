@@ -13,7 +13,7 @@ object GameConstants {
     
     const val INITIAL_SHUFFLES = 3
     const val INITIAL_TIME_CLASSIC = 120 // 2 minutes for Campaign
-    const val FIXED_TIME_CLASSIC = 480 // 8 minutes for Classic Mode
+    const val FIXED_TIME_CLASSIC = 600 // 8 minutes for Classic Mode
     const val REWARD_AD_TIME_SECONDS = 120 // 2 minutes
     const val TIME_ADD_PER_MATCH = 10 // 10 seconds
 

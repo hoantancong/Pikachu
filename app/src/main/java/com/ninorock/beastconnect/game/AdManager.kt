@@ -16,8 +16,8 @@ class AdManager(private val context: Context) {
     private var rewardedAd: RewardedAd? = null
     private var interstitialAd: InterstitialAd? = null
     
-    private val rewardedAdUnitId = "ca-app-pub-3940256099942544/5224354917" // Test Rewarded Ad ID
-    private val interstitialAdUnitId = "ca-app-pub-3940256099942544/1033173712" // Test Interstitial Ad ID
+    private val rewardedAdUnitId = "ca-app-pub-7200414901906199/7619720970" // Test Rewarded Ad ID
+    private val interstitialAdUnitId = "ca-app-pub-7200414901906199/1297855208" // Test Interstitial Ad ID
 
     init {
         MobileAds.initialize(context)

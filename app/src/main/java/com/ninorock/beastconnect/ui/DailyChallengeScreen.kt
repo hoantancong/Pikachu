@@ -81,7 +81,7 @@ fun DailyChallengeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text("DAILY", color = Color(0xFFFFD700), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                    //Text(stringResource(R.string.daily_challenge), color = Color(0xFFFFD700), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     GameInfoItemModern(stringResource(R.string.daily_challenge).uppercase(), "", Color.White)
